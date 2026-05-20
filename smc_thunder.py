@@ -6,97 +6,88 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # =========================
-# PODACI (Hrvatska)
-# =========================
-url = "https://api.open-meteo.com/v1/forecast"
-
-params = {
-    "latitude": 45.8,
-    "longitude": 16.0,
-    "hourly": "cape,cloudcover,precipitation_probability",
-    "past_days": 1,
-    "timezone": "UTC"
-}
-
-data = requests.get(url, params=params).json()["hourly"]
-
-base_cape = max(data["cape"])
-base_cloud = max(data["cloudcover"])
-base_precip = max(data["precipitation_probability"])
-
-# =========================
-# REGIJE HRVATSKE
+# LOKACIJE REGIJA (HRVATSKA)
 # =========================
 regije = {
-    "Istra": 0.9,
-    "Kvarner": 1.0,
-    "Gorski kotar": 1.1,
-    "Lika": 1.1,
-    "Zagreb": 1.0,
-    "Slavonija": 1.2,
-    "Dalmacija": 0.95
+    "Zagreb": (45.8150, 15.9819),
+    "Istra (Pazin)": (45.2400, 13.9367),
+    "Rijeka (Kvarner)": (45.3271, 14.4422),
+    "Gorski kotar (Delnice)": (45.3986, 14.8019),
+    "Lika (Gospić)": (44.5461, 15.3747),
+    "Slavonija (Osijek)": (45.5550, 18.6955),
+    "Dalmacija (Split)": (43.5081, 16.4402)
 }
 
 # =========================
-# HRVATSKI OPIS RIZIKA
+# FUNKCIJA RIZIKA
 # =========================
 def razina_rizika(cape, cloud, precip):
 
-    bodovi = 0
+    score = 0
 
     if cape > 1500:
-        bodovi += 3
+        score += 3
     elif cape > 800:
-        bodovi += 2
+        score += 2
     elif cape > 300:
-        bodovi += 1
+        score += 1
 
     if cloud > 80:
-        bodovi += 2
+        score += 2
     elif cloud > 60:
-        bodovi += 1
+        score += 1
 
     if precip > 60:
-        bodovi += 2
+        score += 2
     elif precip > 30:
-        bodovi += 1
+        score += 1
 
-    if bodovi <= 2:
-        return "🟢 NIZAK RIZIK"
-    elif bodovi <= 4:
-        return "🟡 UMJEREN RIZIK"
-    elif bodovi <= 6:
-        return "🟠 VISOK RIZIK"
+    if score <= 2:
+        return "🟢 NIZAK"
+    elif score <= 4:
+        return "🟡 UMJEREN"
+    elif score <= 6:
+        return "🟠 VISOK"
     else:
-        return "🔴 VRLO VISOK RIZIK"
+        return "🔴 VRLO VISOK"
 
 # =========================
 # PORUKA
 # =========================
 poruka = f"""
-🌩️ SMC THUNDER PREDIKCIJA
+🌩️ SMC THUNDER PREDIKCIJA v2 (REAL REGIJE)
 
 📅 {datetime.utcnow().date()}
 
-🇭🇷 PREGLED HRVATSKE
-- CAPE: {base_cape}
-- Naoblaka: {base_cloud}%
-- Vjerojatnost oborina: {base_precip}%
-
-📍 RIZIK PO REGIJAMA:
+📍 REGIONALNI PREGLED:
 """
 
-for regija, faktor in regije.items():
+# =========================
+# PO REGIJAMA (REAL DATA)
+# =========================
+for ime, (lat, lon) in regije.items():
 
-    cape = base_cape * faktor
-    cloud = base_cloud * faktor
-    precip = base_precip * faktor
+    url = "https://api.open-meteo.com/v1/forecast"
 
-    razina = razina_rizika(cape, cloud, precip)
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "cape,cloudcover,precipitation_probability",
+        "past_days": 1,
+        "timezone": "UTC"
+    }
 
-    poruka += f"{regija:15} {razina}\n"
+    data = requests.get(url, params=params).json()["hourly"]
 
-poruka += "\n🧠 Napomena: meteorološki model (nije izravno mjerenje munja)"
+    cape = max(data["cape"])
+    cloud = max(data["cloudcover"])
+    precip = max(data["precipitation_probability"])
+
+    rizik = razina_rizika(cape, cloud, precip)
+
+    poruka += f"{ime:25} {rizik}\n"
+
+    print(f"{ime} -> CAPE {cape}, CLOUD {cloud}, PRECIP {precip}")
 
 # =========================
 # SLANJE NA TELEGRAM
