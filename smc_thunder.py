@@ -4,67 +4,43 @@ import os
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+MODE = os.getenv("MODE")
 
-# =========================
-# LOKACIJE REGIJA (HRVATSKA)
-# =========================
 regije = {
-    "Zagreb": (45.8150, 15.9819),
-    "Istra (Pazin)": (45.2400, 13.9367),
-    "Rijeka (Kvarner)": (45.3271, 14.4422),
-    "Gorski kotar (Delnice)": (45.3986, 14.8019),
-    "Lika (Gospić)": (44.5461, 15.3747),
-    "Slavonija (Osijek)": (45.5550, 18.6955),
-    "Dalmacija (Split)": (43.5081, 16.4402)
+    "Zagreb": (45.81, 15.98),
+    "Istra": (45.24, 13.94),
+    "Rijeka": (45.33, 14.44),
+    "Gorski kotar": (45.40, 14.80),
+    "Lika": (44.55, 15.37),
+    "Slavonija": (45.56, 18.70),
+    "Dalmacija": (43.51, 16.44)
 }
 
-# =========================
-# FUNKCIJA RIZIKA
-# =========================
-def razina_rizika(cape, cloud, precip):
-
+def rizik(cape, cloud, precip):
     score = 0
 
-    if cape > 1500:
-        score += 3
-    elif cape > 800:
-        score += 2
-    elif cape > 300:
-        score += 1
+    if cape > 1500: score += 3
+    elif cape > 800: score += 2
+    elif cape > 300: score += 1
 
-    if cloud > 80:
-        score += 2
-    elif cloud > 60:
-        score += 1
+    if cloud > 80: score += 2
+    elif cloud > 60: score += 1
 
-    if precip > 60:
-        score += 2
-    elif precip > 30:
-        score += 1
+    if precip > 60: score += 2
+    elif precip > 30: score += 1
 
     if score <= 2:
-        return "🟢 NIZAK"
+        return "NIZAK"
     elif score <= 4:
-        return "🟡 UMJEREN"
+        return "UMJEREN"
     elif score <= 6:
-        return "🟠 VISOK"
+        return "VISOK"
     else:
-        return "🔴 VRLO VISOK"
+        return "VRLO VISOK"
 
-# =========================
-# PORUKA
-# =========================
-poruka = f"""
-🌩️ SMC THUNDER PREDIKCIJA v2 (REAL REGIJE)
+results = []
+alert_zones = []
 
-📅 {datetime.utcnow().date()}
-
-📍 REGIONALNI PREGLED:
-"""
-
-# =========================
-# PO REGIJAMA (REAL DATA)
-# =========================
 for ime, (lat, lon) in regije.items():
 
     url = "https://api.open-meteo.com/v1/forecast"
@@ -83,18 +59,42 @@ for ime, (lat, lon) in regije.items():
     cloud = max(data["cloudcover"])
     precip = max(data["precipitation_probability"])
 
-    rizik = razina_rizika(cape, cloud, precip)
+    level = rizik(cape, cloud, precip)
 
-    poruka += f"{ime:25} {rizik}\n"
+    results.append(f"{ime:15} {level}")
 
-    print(f"{ime} -> CAPE {cape}, CLOUD {cloud}, PRECIP {precip}")
+    if level == "VRLO VISOK":
+        alert_zones.append(ime)
 
 # =========================
-# SLANJE NA TELEGRAM
+# MODE LOGIKA
+# =========================
+
+if MODE == "report":
+
+    msg = "🌩️ SMC JUTARNJI IZVJEŠTAJ\n\n"
+    msg += f"📅 {datetime.utcnow().date()}\n\n"
+
+    msg += "📍 REGIJE:\n"
+    msg += "\n".join(results)
+
+elif MODE == "alert":
+
+    if not alert_zones:
+        print("No alert → exit")
+        exit()
+
+    msg = "🚨 SMC THUNDER ALERT\n\n"
+    msg += "🔴 VRLO VISOK RIZIK\n\n"
+    msg += "📍 Pogođeno:\n"
+    msg += "\n".join(alert_zones)
+
+# =========================
+# SEND
 # =========================
 requests.post(
     f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-    data={"chat_id": CHAT_ID, "text": poruka}
+    data={"chat_id": CHAT_ID, "text": msg}
 )
 
-print("poslano ✔")
+print("sent")
