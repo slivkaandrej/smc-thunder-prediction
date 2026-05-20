@@ -6,7 +6,7 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # =========================
-# PODACI (centralna HR)
+# PODACI (Hrvatska)
 # =========================
 url = "https://api.open-meteo.com/v1/forecast"
 
@@ -27,7 +27,7 @@ base_precip = max(data["precipitation_probability"])
 # =========================
 # REGIJE HRVATSKE
 # =========================
-regions = {
+regije = {
     "Istra": 0.9,
     "Kvarner": 1.0,
     "Gorski kotar": 1.1,
@@ -38,61 +38,72 @@ regions = {
 }
 
 # =========================
-# FUNKCIJA RIZIKA
+# HRVATSKI OPIS RIZIKA
 # =========================
-def risk(cape, cloud, precip):
+def razina_rizika(cape, cloud, precip):
 
-    score = 0
+    bodovi = 0
 
-    if cape > 1500: score += 3
-    elif cape > 800: score += 2
-    elif cape > 300: score += 1
+    if cape > 1500:
+        bodovi += 3
+    elif cape > 800:
+        bodovi += 2
+    elif cape > 300:
+        bodovi += 1
 
-    if cloud > 80: score += 2
-    elif cloud > 60: score += 1
+    if cloud > 80:
+        bodovi += 2
+    elif cloud > 60:
+        bodovi += 1
 
-    if precip > 60: score += 2
-    elif precip > 30: score += 1
+    if precip > 60:
+        bodovi += 2
+    elif precip > 30:
+        bodovi += 1
 
-    if score <= 2:
-        return "🟢 LOW"
-    elif score <= 4:
-        return "🟡 MODERATE"
-    elif score <= 6:
-        return "🟠 HIGH"
+    if bodovi <= 2:
+        return "🟢 NIZAK RIZIK"
+    elif bodovi <= 4:
+        return "🟡 UMJEREN RIZIK"
+    elif bodovi <= 6:
+        return "🟠 VISOK RIZIK"
     else:
-        return "🔴 SEVERE"
+        return "🔴 VRLO VISOK RIZIK"
 
 # =========================
-# MESSAGE
+# PORUKA
 # =========================
-msg = f"🌩️ SMC THUNDER PREDICTION\n\n📅 {datetime.utcnow().date()}\n\n"
+poruka = f"""
+🌩️ SMC THUNDER PREDIKCIJA
 
-msg += "🇭🇷 HRVATSKA OVERVIEW\n"
-msg += f"- CAPE: {base_cape}\n"
-msg += f"- Naoblaka: {base_cloud}%\n"
-msg += f"- Oborine: {base_precip}%\n\n"
+📅 {datetime.utcnow().date()}
 
-msg += "📍 REGIJE:\n"
+🇭🇷 PREGLED HRVATSKE
+- CAPE: {base_cape}
+- Naoblaka: {base_cloud}%
+- Vjerojatnost oborina: {base_precip}%
 
-for region, factor in regions.items():
+📍 RIZIK PO REGIJAMA:
+"""
 
-    cape = base_cape * factor
-    cloud = base_cloud * factor
-    precip = base_precip * factor
+for regija, faktor in regije.items():
 
-    level = risk(cape, cloud, precip)
+    cape = base_cape * faktor
+    cloud = base_cloud * faktor
+    precip = base_precip * faktor
 
-    msg += f"{region:15} {level}\n"
+    razina = razina_rizika(cape, cloud, precip)
 
-msg += "\n🧠 Model: meteorološka procjena (nije direktna munja)\n"
+    poruka += f"{regija:15} {razina}\n"
+
+poruka += "\n🧠 Napomena: meteorološki model (nije izravno mjerenje munja)"
 
 # =========================
-# SEND TELEGRAM
+# SLANJE NA TELEGRAM
 # =========================
 requests.post(
     f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-    data={"chat_id": CHAT_ID, "text": msg}
+    data={"chat_id": CHAT_ID, "text": poruka}
 )
 
-print("sent")
+print("poslano ✔")
