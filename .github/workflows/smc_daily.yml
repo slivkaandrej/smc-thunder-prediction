@@ -1,10 +1,11 @@
-name: SMC Daily Reports
+aml
+
+name: Morning Report
 
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 5 * * *"
-    - cron: "0 12 * * *"
 
 jobs:
   run:
