@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime
 import os
+import sys
 
 # =========================
 # TELEGRAM SETTINGS
@@ -8,6 +9,20 @@ import os
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE")
+
+# =========================
+# INTELIGENTNO ZAKAZIVANJE ZA REPORT MODE
+# =========================
+if MODE == "report":
+    now = datetime.now()
+    # Dozvoli slanje od 7:00 do 7:20 i od 14:00 do 14:20 (zbog GitHubovog kašnjenja)
+    if now.hour == 7 and now.minute <= 20:
+        print(f"✅ Jutarnji report - šaljem u {now.hour}:{now.minute:02d}")
+    elif now.hour == 14 and now.minute <= 20:
+        print(f"✅ Popodnevni report - šaljem u {now.hour}:{now.minute:02d}")
+    else:
+        print(f"⏭️ Preskačem report u {now.hour}:{now.minute:02d} (samo u 7:00-7:20 i 14:00-14:20)")
+        sys.exit(0)
 
 # =========================
 # REGIJE
@@ -62,6 +77,11 @@ def rizik(cape, cloud, precip):
 results = []
 alert_zones = []
 
+print(f"\n{'='*50}")
+print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"Mod: {MODE}")
+print(f"{'='*50}\n")
+
 for ime, (lat, lon) in regije.items():
     try:
         url = "https://api.open-meteo.com/v1/forecast"
@@ -90,10 +110,15 @@ for ime, (lat, lon) in regije.items():
         if level == "VRLO VISOK":
             alert_zones.append(ime)
 
-        print(f"{ime} | CAPE={cape} CLOUD={cloud} PRECIP={precip} => {level}")
+        print(f"{ime:15} | CAPE={cape:4.0f} CLOUD={cloud:3.0f}% PRECIP={precip:3.0f}% => {level}")
 
     except Exception as e:
-        print("ERROR:", ime, e)
+        print(f"ERROR - {ime}: {e}")
+
+print(f"\n{'-'*50}")
+print(f"Ukupno regija: {len(results)}")
+print(f"Alert zona: {len(alert_zones)}")
+print(f"{'-'*50}\n")
 
 # =========================
 # MSG BUILD
@@ -107,7 +132,7 @@ if MODE == "report":
     msg = f"""🌩️ SMC THUNDER
 
 {naslov}
-📅 {datetime.now().strftime("%d.%m.%Y")}
+📅 {datetime.now().strftime("%d.%m.%Y. %H:%M")}
 
 📍 REGIJE:
 
@@ -115,39 +140,48 @@ if MODE == "report":
 
 elif MODE == "alert":
     if not alert_zones:
-        print("No alerts")
-        exit()
-
-    msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
-    msg += "\n".join([f"⚡ {z}" for z in alert_zones])
+        print("✅ Alert check: Nema zona s vrlo visokim rizikom")
+        print("📤 Ne šaljem Telegram poruku")
+        sys.exit(0)
+    else:
+        msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
+        msg += "\n".join([f"⚡ {z}" for z in alert_zones])
+        msg += f"\n\n📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}"
 
 else:
-    print("MODE not set")
-    exit()
-
-# =========================
-# DEBUG (OBAVEZNO)
-# =========================
-print("TOKEN:", TOKEN)
-print("CHAT_ID:", CHAT_ID)
-print("MODE:", MODE)
-
-if not TOKEN or not CHAT_ID:
-    print("❌ Missing env vars")
-    exit()
+    print(f"❌ MODE nije postavljen ili je neispravan: {MODE}")
+    sys.exit(1)
 
 # =========================
 # SEND TELEGRAM
 # =========================
-resp = requests.post(
-    f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-    data={
-        "chat_id": CHAT_ID,
-        "text": msg
-    }
-)
+if not TOKEN or not CHAT_ID:
+    print("❌ Missing environment variables:")
+    print(f"   TOKEN: {'SET' if TOKEN else 'MISSING'}")
+    print(f"   CHAT_ID: {'SET' if CHAT_ID else 'MISSING'}")
+    sys.exit(1)
 
-print("STATUS:", resp.status_code)
-print("RESPONSE:", resp.text)
+print("📤 Šaljem Telegram poruku...")
 
-print("DONE")
+try:
+    resp = requests.post(
+        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+        data={
+            "chat_id": CHAT_ID,
+            "text": msg
+        },
+        timeout=10
+    )
+
+    print(f"📡 Status: {resp.status_code}")
+    
+    if resp.status_code == 200:
+        print("✅ Poruka uspješno poslana!")
+    else:
+        print(f"❌ Greška: {resp.text}")
+        
+except Exception as e:
+    print(f"❌ Greška pri slanju: {e}")
+    sys.exit(1)
+
+print("\n✅ SMC Thunder završio\n")
