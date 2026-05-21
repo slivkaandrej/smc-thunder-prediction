@@ -11,18 +11,23 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE")
 
 # =========================
-# INTELIGENTNO ZAKAZIVANJE ZA REPORT MODE
+# PROVJERA ZA AUTOMATSKO I RUČNO POKRETANJE
 # =========================
-if MODE == "report":
+# Ako je ručno pokretanje (workflow_dispatch), uvijek šalji
+is_manual = os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch"
+
+if MODE == "report" and not is_manual:
     now = datetime.now()
-    # Dozvoli slanje od 7:00 do 7:20 i od 14:00 do 14:20 (zbog GitHubovog kašnjenja)
+    # Samo za automatske runove provjeri vrijeme
     if now.hour == 7 and now.minute <= 20:
         print(f"✅ Jutarnji report - šaljem u {now.hour}:{now.minute:02d}")
     elif now.hour == 14 and now.minute <= 20:
         print(f"✅ Popodnevni report - šaljem u {now.hour}:{now.minute:02d}")
     else:
-        print(f"⏭️ Preskačem report u {now.hour}:{now.minute:02d} (samo u 7:00-7:20 i 14:00-14:20)")
+        print(f"⏭️ Preskačem automatski report u {now.hour}:{now.minute:02d} (samo u 7:00-7:20 i 14:00-14:20)")
         sys.exit(0)
+elif MODE == "report" and is_manual:
+    print("✅ Ručno pokretanje - šaljem report odmah!")
 
 # =========================
 # REGIJE
@@ -80,6 +85,7 @@ alert_zones = []
 print(f"\n{'='*50}")
 print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Mod: {MODE}")
+print(f"Ručno pokretanje: {is_manual}")
 print(f"{'='*50}\n")
 
 for ime, (lat, lon) in regije.items():
@@ -162,6 +168,7 @@ if not TOKEN or not CHAT_ID:
     sys.exit(1)
 
 print("📤 Šaljem Telegram poruku...")
+print(f"Poruka:\n{msg}\n")
 
 try:
     resp = requests.post(
@@ -177,6 +184,7 @@ try:
     
     if resp.status_code == 200:
         print("✅ Poruka uspješno poslana!")
+        print(f"Response: {resp.json()}")
     else:
         print(f"❌ Greška: {resp.text}")
         
