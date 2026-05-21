@@ -4,33 +4,44 @@ import os
 import pytz
 
 # =========================
-# TIMEZONE (ZAGREB)
+# TIMEZONE
 # =========================
 ZAGREB = pytz.timezone("Europe/Zagreb")
 now = datetime.now(ZAGREB)
 
 # =========================
-# SCHEDULER (LOCAL TIME GUARD)
+# ENV VARS
+# =========================
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+MODE = os.getenv("MODE", "report")
+RUN_TYPE = os.getenv("RUN_TYPE", "auto")
+
+# =========================
+# RUN TIMES (ZAGREB)
 # =========================
 RUN_TIMES = [
     (7, 15),
     (15, 18)
 ]
 
-should_run = any(now.hour == h and now.minute == m for h, m in RUN_TIMES)
+def is_scheduled_time():
+    return any(now.hour == h and now.minute == m for h, m in RUN_TIMES)
 
-print(f"[INFO] Zagreb time: {now.strftime('%H:%M')}")
-
-if not should_run:
-    print("[INFO] Not scheduled time → exit")
-    exit(0)
+print("================================")
+print("[INFO] RUN_TYPE:", RUN_TYPE)
+print("[INFO] TIME:", now.strftime("%H:%M"))
+print("================================")
 
 # =========================
-# TELEGRAM SETTINGS
+# SAFETY GATE (IMPORTANT FIX)
 # =========================
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-MODE = os.getenv("MODE", "report")
+if RUN_TYPE == "schedule":
+    if not is_scheduled_time():
+        print("[INFO] Not scheduled time → EXIT")
+        exit(0)
+else:
+    print("[INFO] Manual run → bypass time check")
 
 # =========================
 # REGIJE
@@ -46,7 +57,7 @@ regije = {
 }
 
 # =========================
-# RIZIK FUNKCIJA
+# RISK FUNCTION
 # =========================
 def rizik(cape, cloud, precip):
     score = 0
@@ -80,7 +91,7 @@ def rizik(cape, cloud, precip):
         return "VRLO VISOK"
 
 # =========================
-# MAIN ANALYSIS
+# DATA COLLECTION
 # =========================
 results = []
 alert_zones = []
@@ -106,23 +117,26 @@ for ime, (lat, lon) in regije.items():
 
         level = rizik(cape, cloud, precip)
 
-        emoji = "🟢" if level == "NIZAK" else "🟡" if level == "UMJEREN" else "🟠" if level == "VISOK" else "🔴"
+        emoji = (
+            "🟢" if level == "NIZAK" else
+            "🟡" if level == "UMJEREN" else
+            "🟠" if level == "VISOK" else
+            "🔴"
+        )
 
         results.append(f"{emoji} {ime:15} {level}")
 
         if level == "VRLO VISOK":
             alert_zones.append(ime)
 
-        print(f"{ime} | CAPE={cape} CLOUD={cloud} PRECIP={precip} => {level}")
+        print(f"{ime} => {level} (CAPE={cape})")
 
     except Exception as e:
-        print("ERROR:", ime, e)
+        print("[ERROR]", ime, e)
 
 # =========================
-# MESSAGE BUILD
+# MESSAGE
 # =========================
-msg = ""
-
 if MODE == "report":
     naslov = "🌅 JUTARNJI IZVJEŠTAJ" if now.hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
 
@@ -145,18 +159,14 @@ elif MODE == "alert":
     msg += "\n".join([f"⚡ {z}" for z in alert_zones])
 
 else:
-    print("MODE not set")
-    exit(0)
+    print("[ERROR] MODE not set")
+    exit(1)
 
 # =========================
-# VALIDATION
+# CHECK SECRETS
 # =========================
-print("MODE:", MODE)
-print("TOKEN OK:", bool(TOKEN))
-print("CHAT_ID OK:", bool(CHAT_ID))
-
 if not TOKEN or not CHAT_ID:
-    print("❌ Missing env vars")
+    print("[ERROR] Missing Telegram secrets")
     exit(1)
 
 # =========================
@@ -170,6 +180,6 @@ resp = requests.post(
     }
 )
 
-print("STATUS:", resp.status_code)
-print("RESPONSE:", resp.text)
-print("DONE")
+print("[INFO] STATUS:", resp.status_code)
+print("[INFO] RESPONSE:", resp.text)
+print("[DONE]")
