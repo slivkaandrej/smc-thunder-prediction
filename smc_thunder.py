@@ -18,13 +18,19 @@ is_manual = os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch"
 
 if MODE == "report" and not is_manual:
     now = datetime.now()
-    # Samo za automatske runove provjeri vrijeme
-    if now.hour == 7 and now.minute <= 20:
+    print(f"Trenutno vrijeme: {now.hour}:{now.minute:02d}")
+    
+    # TEST MODE - šalji u 17:20
+    if now.hour == 17 and now.minute >= 20 and now.minute <= 25:
+        print(f"✅ TEST: Šaljem poruku u {now.hour}:{now.minute:02d}")
+    # Redovni termini - 7:00-7:20 i 14:00-14:20
+    elif now.hour == 7 and now.minute <= 20:
         print(f"✅ Jutarnji report - šaljem u {now.hour}:{now.minute:02d}")
     elif now.hour == 14 and now.minute <= 20:
         print(f"✅ Popodnevni report - šaljem u {now.hour}:{now.minute:02d}")
     else:
-        print(f"⏭️ Preskačem automatski report u {now.hour}:{now.minute:02d} (samo u 7:00-7:20 i 14:00-14:20)")
+        print(f"⏭️ Preskačem automatski report u {now.hour}:{now.minute:02d}")
+        print(f"   (samo u 7:00-7:20, 14:00-14:20 ili 17:20-17:25 za TEST)")
         sys.exit(0)
 elif MODE == "report" and is_manual:
     print("✅ Ručno pokretanje - šaljem report odmah!")
@@ -133,7 +139,10 @@ msg = ""
 
 if MODE == "report":
     hour = datetime.now().hour
-    naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
+    if hour == 17:
+        naslov = "🧪 TESTNI IZVJEŠTAJ (17:20)"
+    else:
+        naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
 
     msg = f"""🌩️ SMC THUNDER
 
