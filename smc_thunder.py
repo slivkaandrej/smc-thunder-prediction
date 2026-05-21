@@ -15,10 +15,10 @@ now = datetime.now(ZAGREB)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE", "report")
-RUN_TYPE = os.getenv("RUN_TYPE", "auto")
+RUN_TYPE = os.getenv("RUN_TYPE", "schedule")
 
 # =========================
-# RUN TIMES (ZAGREB)
+# RUN TIMES
 # =========================
 RUN_TIMES = [
     (7, 15),
@@ -34,14 +34,14 @@ print("[INFO] TIME:", now.strftime("%H:%M"))
 print("================================")
 
 # =========================
-# SAFETY GATE (IMPORTANT FIX)
+# SAFETY GATE (FIXED LOGIC)
 # =========================
-if RUN_TYPE == "schedule":
-    if not is_scheduled_time():
-        print("[INFO] Not scheduled time → EXIT")
-        exit(0)
-else:
+if RUN_TYPE == "workflow_dispatch":
     print("[INFO] Manual run → bypass time check")
+else:
+    if not is_scheduled_time():
+        print("[INFO] Not scheduled time → exit")
+        exit(0)
 
 # =========================
 # REGIJE
@@ -57,7 +57,7 @@ regije = {
 }
 
 # =========================
-# RISK FUNCTION
+# RIZIK FUNKCIJA
 # =========================
 def rizik(cape, cloud, precip):
     score = 0
@@ -91,7 +91,7 @@ def rizik(cape, cloud, precip):
         return "VRLO VISOK"
 
 # =========================
-# DATA COLLECTION
+# MAIN
 # =========================
 results = []
 alert_zones = []
@@ -129,7 +129,7 @@ for ime, (lat, lon) in regije.items():
         if level == "VRLO VISOK":
             alert_zones.append(ime)
 
-        print(f"{ime} => {level} (CAPE={cape})")
+        print(f"{ime} => {level}")
 
     except Exception as e:
         print("[ERROR]", ime, e)
@@ -163,14 +163,14 @@ else:
     exit(1)
 
 # =========================
-# CHECK SECRETS
+# VALIDATION
 # =========================
 if not TOKEN or not CHAT_ID:
     print("[ERROR] Missing Telegram secrets")
     exit(1)
 
 # =========================
-# SEND TELEGRAM
+# SEND
 # =========================
 resp = requests.post(
     f"https://api.telegram.org/bot{TOKEN}/sendMessage",
