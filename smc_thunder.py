@@ -24,9 +24,9 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (ispravljene prema tvojoj listi)
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
 # =========================
-mfg_centralne = {
+sve_mfg_grupe = {
     # Sjeverna Hrvatska (9xx)
     "942": ("Varaždin", 46.3044, 16.3378),
     "944": ("Koprivnica", 46.1625, 16.8278),
@@ -66,13 +66,9 @@ mfg_centralne = {
     "734": ("Biograd", 43.9333, 15.4333),
     "735": ("Šibenik", 43.7350, 15.8957),
     
-    # Zagrebačka regija (6xx)
+    # Zagrebačka regija
     "624": ("Samobor", 45.8000, 15.7200),
     "634": ("Velika Gorica", 45.7100, 16.0700),
-}
-
-# Dodaj zagrebačke grupe (6xx - podijeljeno na više područja)
-zagrebacke_grupe = {
     "611": ("Zagreb Centar", 45.8150, 15.9819),
     "613": ("Zagreb Pešćenica", 45.7900, 16.0000),
     "614": ("Zagreb Dubrava", 45.8400, 16.0500),
@@ -80,9 +76,6 @@ zagrebacke_grupe = {
     "622": ("Zagreb Črnomerec", 45.8200, 15.9300),
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
 }
-
-# Spoji sve MFG grupe
-sve_mfg_grupe = {**mfg_centralne, **zagrebacke_grupe}
 
 # =========================
 # RIZIK FUNKCIJA
@@ -208,18 +201,15 @@ elif MODE == "alert":
     msg += f"\n\n📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}"
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - sve MFG grupe)
+# MODE: WEEKLY (tjedni izvještaj - SAMO PODRUČJA S OLUJAMA)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj oluja po MFG grupama...")
+    print("📊 Generiram tjedni izvještaj oluja - SAMO područja s olujama...")
     print(f"Broj MFG grupa: {len(sve_mfg_grupe)}")
     
-    weekly_results = []
-    url = "https://archive-api.open-meteo.com/v1/archive"
-    
-    # Pomaknuto unatrag da podaci postoje (ERA5 kasni ~5 dana)
-    end_date = datetime.now() - timedelta(days=7)
-    start_date = end_date - timedelta(days=6)
+    # Gledamo zadnjih 7 dana (od jučer unazad)
+    end_date = datetime.now() - timedelta(days=1)   # jučer
+    start_date = end_date - timedelta(days=6)       # 7 dana unazad (uključujući jučer)
     
     print(f"Period: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
     
@@ -229,23 +219,26 @@ elif MODE == "weekly":
         dan = start_date + timedelta(days=i)
         datumi.append(dan.strftime("%d.%m."))
     
+    # Rječnik za rezultate (samo tamo gdje ima oluja)
+    rezultati_sa_olujama = {}
+    
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
+            # Koristimo forecast API s past_days za svježe podatke (ne ERA5 koji kasni)
+            url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "start_date": start_date.strftime("%Y-%m-%d"),
-                "end_date": end_date.strftime("%Y-%m-%d"),
                 "hourly": "cape",
+                "past_days": 7,
+                "forecast_days": 0,
                 "timezone": "Europe/Zagreb"
             }
             
             r = requests.get(url, params=params, timeout=30)
             data = r.json()["hourly"]
             
-            # Provjeri da podaci nisu None
             if "cape" not in data or not data["cape"]:
-                print(f"MFG {mfg_id} ({naziv}): Nema podataka")
                 continue
             
             oluje = []
@@ -267,32 +260,47 @@ elif MODE == "weekly":
                 elif max_cape >= 800:
                     oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA (CAPE {max_cape:.0f})")
             
+            # Spremi samo ako ima oluja
             if oluje:
-                weekly_results.append(f"🔵 MFG {mfg_id} ({naziv}):")
-                weekly_results.extend(oluje)
-                weekly_results.append("")
-            else:
-                weekly_results.append(f"🟢 MFG {mfg_id} ({naziv}): ✅ Nema oluja")
-                weekly_results.append("")
+                rezultati_sa_olujama[mfg_id] = {
+                    "naziv": naziv,
+                    "oluje": oluje
+                }
             
             print(f"MFG {mfg_id} ({naziv}): {len(oluje)} dana s olujom")
             
         except Exception as e:
             print(f"ERROR - MFG {mfg_id}: {e}")
-            weekly_results.append(f"⚠️ MFG {mfg_id} ({naziv}): Greška pri dohvatu podataka")
-            weekly_results.append("")
     
-    msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
+    # Kreiraj poruku samo s područjima koja su imala oluje
+    if rezultati_sa_olujama:
+        msg_parts = []
+        for mfg_id, podaci in rezultati_sa_olujama.items():
+            msg_parts.append(f"🔵 MFG {mfg_id} ({podaci['naziv']}):")
+            msg_parts.extend(podaci['oluje'])
+            msg_parts.append("")
+        
+        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
+
+📅 {datetime.now().strftime("%d.%m.%Y")}
+📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
+⚠️ Prikazana su samo područja gdje je bilo oluja (CAPE ≥ 800)
+
+""" + "\n".join(msg_parts) + """
+📌 Legenda:
+⛈️ = oluja (CAPE 800-1500)
+🌩️ = jaka oluja (CAPE ≥ 1500)
+"""
+    else:
+        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
-""" + "\n".join(weekly_results) + """
-📌 Legenda:
-⛈️ = oluja (CAPE 800-1500)
-🌩️ = jaka oluja (CAPE ≥ 1500)
+✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području (CAPE < 800)
 
-📖 Izvor: ECMWF ERA5
+📌 CAPE 800-1500 = oluja
+📌 CAPE ≥ 1500 = jaka oluja
 """
 
 else:
