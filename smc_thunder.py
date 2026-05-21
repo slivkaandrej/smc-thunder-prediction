@@ -24,85 +24,65 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (sve MFG grupe uključujući 9xx)
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (ispravljene prema tvojoj listi)
 # =========================
 mfg_centralne = {
-    # MFG 6xx - Zagrebačka regija
+    # Sjeverna Hrvatska (9xx)
+    "942": ("Varaždin", 46.3044, 16.3378),
+    "944": ("Koprivnica", 46.1625, 16.8278),
+    "945": ("Bjelovar", 45.8986, 16.8489),
+    "951": ("Sisak", 45.4851, 16.3787),
+    "952": ("Kutina", 45.4750, 16.7819),
+    "953": ("Daruvar", 45.5906, 17.2250),
+    "954": ("Slavonski Brod", 45.1603, 18.0156),
+    "962": ("Osijek", 45.5550, 18.6955),
+    "963": ("Slatina", 45.7033, 17.7025),
+    "964": ("Vinkovci", 45.2883, 18.8047),
+    
+    # Kvarner i Istra (8xx)
+    "841": ("Krk", 45.0260, 14.5780),
+    "842": ("Crikvenica", 45.1667, 14.6833),
+    "843": ("Opatija", 45.3333, 14.3000),
+    "845": ("Rijeka", 45.3271, 14.4422),
+    "851": ("Pula", 44.8667, 13.8500),
+    "852": ("Rovinj", 45.0833, 13.6333),
+    "854": ("Umag", 45.4333, 13.5167),
+    
+    # Gorski kotar i Lika (8xx)
+    "831": ("Ogulin", 45.2667, 15.2167),
+    "832": ("Karlovac", 45.4872, 15.5478),
+    
+    # Dalmacija (7xx)
+    "711": ("Dubrovnik", 42.6507, 18.0944),
+    "713": ("Korčula", 42.9600, 17.1300),
+    "715": ("Imotski", 43.4400, 17.2100),
+    "721": ("Split", 43.5081, 16.4402),
+    "722": ("Hvar", 43.1725, 16.4428),
+    "723": ("Trogir", 43.5167, 16.2500),
+    "724": ("Sinj", 43.7000, 16.6333),
+    "725": ("Vis", 43.0600, 16.1800),
+    "731": ("Zadar", 44.1194, 15.2314),
+    "733": ("Knin", 44.0500, 16.2000),
+    "734": ("Biograd", 43.9333, 15.4333),
+    "735": ("Šibenik", 43.7350, 15.8957),
+    
+    # Zagrebačka regija (6xx)
+    "624": ("Samobor", 45.8000, 15.7200),
+    "634": ("Velika Gorica", 45.7100, 16.0700),
+}
+
+# Dodaj zagrebačke grupe (6xx - podijeljeno na više područja)
+zagrebacke_grupe = {
     "611": ("Zagreb Centar", 45.8150, 15.9819),
     "613": ("Zagreb Pešćenica", 45.7900, 16.0000),
     "614": ("Zagreb Dubrava", 45.8400, 16.0500),
     "621": ("Zagreb Trešnjevka", 45.7850, 15.9300),
     "622": ("Zagreb Črnomerec", 45.8200, 15.9300),
-    "624": ("Samobor", 45.8000, 15.7200),
-    "625": ("Zabok", 46.0300, 15.9100),
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
-    "634": ("Velika Gorica", 45.7100, 16.0700),
-    
-    # MFG 7xx - Dalmacija
-    "711": ("Dubrovnik", 42.6507, 18.0944),
-    "713": ("Korčula", 42.9600, 17.1300),
-    "715": ("Omiš", 43.4400, 16.6900),
-    "721": ("Split", 43.5081, 16.4402),
-    "722": ("Solin", 43.5333, 16.5000),
-    "723": ("Kaštela", 43.5500, 16.3500),
-    "724": ("Sinj", 43.7000, 16.6333),
-    "725": ("Istok Splita", 43.5100, 16.4800),
-    "731": ("Zadar centar", 44.1194, 15.2314),
-    "733": ("Drniš", 43.8667, 16.1500),
-    "734": ("Biograd", 43.9333, 15.4333),
-    "735": ("Šibenik", 43.7350, 15.8957),
-    
-    # MFG 8xx - Kvarner i Istra
-    "841": ("Sušak", 45.3200, 14.4500),
-    "842": ("Crikvenica", 45.1667, 14.6833),
-    "843": ("Opatija", 45.3333, 14.3000),
-    "844": ("Zamet", 45.3500, 14.4000),
-    "845": ("Rijeka centar", 45.3271, 14.4422),
-    "851": ("Pula", 44.8667, 13.8500),
-    "852": ("Rovinj", 45.0833, 13.6333),
-    "854": ("Umag", 45.4333, 13.5167),
-    
-    # MFG 8xx - Gorski kotar i Lika (nastavak)
-    "831": ("Ogulin", 45.2667, 15.2167),
-    "832": ("Karlovac", 45.4872, 15.5478),
-    
-    # MFG 9xx - Međimurje i sjeverna Hrvatska
-    "911": ("Čakovec", 46.3844, 16.4342),
-    "912": ("Prelog", 46.3347, 16.6164),
-    "913": ("Mursko Središće", 46.5092, 16.4408),
-    "914": ("Donji Kraljevec", 46.3558, 16.6517),
-    "921": ("Varaždin", 46.3044, 16.3378),
-    "922": ("Ivanec", 46.2233, 16.1200),
-    "923": ("Lepoglava", 46.2106, 16.0356),
-    "924": ("Novi Marof", 46.1647, 16.3306),
-    "931": ("Koprivnica", 46.1625, 16.8278),
-    "932": ("Križevci", 46.0189, 16.5425),
-    "933": ("Đurđevac", 46.0397, 17.0717),
-    "934": ("Novigrad Podravski", 46.0781, 16.9528),
-    "941": ("Bjelovar", 45.8986, 16.8489),
-    "942": ("Čazma", 45.7486, 16.6139),
-    "943": ("Garešnica", 45.5744, 16.9414),
-    "944": ("Daruvar", 45.5906, 17.2250),
-    "951": ("Virovitica", 45.8317, 17.3839),
-    "952": ("Slatina", 45.7033, 17.7025),
-    "953": ("Orahovica", 45.5400, 17.8847),
-    "961": ("Požega", 45.3314, 17.6744),
-    "962": ("Pakrac", 45.4364, 17.1889),
-    "963": ("Kutjevo", 45.4261, 17.8836),
-    "964": ("Lipik", 45.4114, 17.1522),
-    "971": ("Slavonski Brod", 45.1603, 18.0156),
-    "972": ("Nova Gradiška", 45.2553, 17.3833),
-    "973": ("Novska", 45.3406, 16.9769),
-    "981": ("Osijek", 45.5550, 18.6955),
-    "982": ("Đakovo", 45.3083, 18.4111),
-    "983": ("Našice", 45.4886, 18.0847),
-    "984": ("Valpovo", 45.6608, 18.4158),
-    "985": ("Belišće", 45.6803, 18.4056),
-    "991": ("Vinkovci", 45.2883, 18.8047),
-    "992": ("Vukovar", 45.3500, 19.0000),
-    "993": ("Županja", 45.0775, 18.6975),
-    "994": ("Ilok", 45.2222, 19.3769),
 }
+
+# Spoji sve MFG grupe
+sve_mfg_grupe = {**mfg_centralne, **zagrebacke_grupe}
 
 # =========================
 # RIZIK FUNKCIJA
@@ -232,7 +212,7 @@ elif MODE == "alert":
 # =========================
 elif MODE == "weekly":
     print("📊 Generiram tjedni izvještaj oluja po MFG grupama...")
-    print(f"Broj MFG grupa: {len(mfg_centralne)}")
+    print(f"Broj MFG grupa: {len(sve_mfg_grupe)}")
     
     weekly_results = []
     url = "https://archive-api.open-meteo.com/v1/archive"
@@ -249,7 +229,7 @@ elif MODE == "weekly":
         dan = start_date + timedelta(days=i)
         datumi.append(dan.strftime("%d.%m."))
     
-    for mfg_id, (naziv, lat, lon) in mfg_centralne.items():
+    for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
             params = {
                 "latitude": lat,
