@@ -7,12 +7,10 @@ import os
 # =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-# report / alert mode
 MODE = os.getenv("MODE")
 
 # =========================
-# HRVATSKE REGIJE
+# REGIJE
 # =========================
 regije = {
     "Zagreb": (45.8150, 15.9819),
@@ -25,13 +23,11 @@ regije = {
 }
 
 # =========================
-# RIZIK GRMLJAVINE
+# RIZIK FUNKCIJA
 # =========================
 def rizik(cape, cloud, precip):
-
     score = 0
 
-    # CAPE
     if cape > 2000:
         score += 4
     elif cape > 1500:
@@ -41,19 +37,16 @@ def rizik(cape, cloud, precip):
     elif cape > 300:
         score += 1
 
-    # CLOUD
     if cloud > 90:
         score += 2
     elif cloud > 70:
         score += 1
 
-    # PRECIP
     if precip > 80:
         score += 2
     elif precip > 50:
         score += 1
 
-    # FINAL
     if score <= 2:
         return "NIZAK"
     elif score <= 4:
@@ -64,15 +57,13 @@ def rizik(cape, cloud, precip):
         return "VRLO VISOK"
 
 # =========================
-# API FETCH
+# MAIN
 # =========================
 results = []
 alert_zones = []
 
 for ime, (lat, lon) in regije.items():
-
     try:
-
         url = "https://api.open-meteo.com/v1/forecast"
 
         params = {
@@ -84,7 +75,6 @@ for ime, (lat, lon) in regije.items():
         }
 
         r = requests.get(url, params=params, timeout=30)
-
         data = r.json()["hourly"]
 
         cape = max(data["cape"])
@@ -93,100 +83,63 @@ for ime, (lat, lon) in regije.items():
 
         level = rizik(cape, cloud, precip)
 
-        # emoji
-        if level == "NIZAK":
-            emoji = "🟢"
-        elif level == "UMJEREN":
-            emoji = "🟡"
-        elif level == "VISOK":
-            emoji = "🟠"
-        else:
-            emoji = "🔴"
+        emoji = "🟢" if level == "NIZAK" else "🟡" if level == "UMJEREN" else "🟠" if level == "VISOK" else "🔴"
 
         results.append(f"{emoji} {ime:15} {level}")
 
         if level == "VRLO VISOK":
             alert_zones.append(ime)
 
-        print(
-            f"{ime} | CAPE={cape} CLOUD={cloud} PRECIP={precip} => {level}"
-        )
+        print(f"{ime} | CAPE={cape} CLOUD={cloud} PRECIP={precip} => {level}")
 
     except Exception as e:
-
         print("ERROR:", ime, e)
 
 # =========================
-# REPORT MODE
+# MSG BUILD
 # =========================
+msg = ""
+
 if MODE == "report":
-
     hour = datetime.now().hour
+    naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
 
-    if hour < 12:
-        naslov = "🌅 JUTARNJI IZVJEŠTAJ"
-    else:
-        naslov = "🌤️ POPODNEVNI IZVJEŠTAJ"
-
-    msg = f"""
-╔══════════════════╗
-   🌩️ SMC THUNDER
-╚══════════════════╝
+    msg = f"""🌩️ SMC THUNDER
 
 {naslov}
-
 📅 {datetime.now().strftime("%d.%m.%Y")}
 
-📍 STANJE PO REGIJAMA
+📍 REGIJE:
 
-"""
+""" + "\n".join(results)
 
-    msg += "\n".join(results)
-
-    msg += """
-
-━━━━━━━━━━━━━━━━━━
-🧠 SMC Meteorološki Model
-⚡ Automatski Storm Monitoring
-━━━━━━━━━━━━━━━━━━
-"""
-
-# =========================
-# ALERT MODE
-# =========================
 elif MODE == "alert":
-
-    # nema alarma
     if not alert_zones:
-        print("Nema alarma.")
+        print("No alerts")
         exit()
 
-    msg = f"""
-🚨🚨🚨 SMC THUNDER ALERT 🚨🚨🚨
+    msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
+    msg += "\n".join([f"⚡ {z}" for z in alert_zones])
 
-🔴 VRLO VISOK RIZIK GRMLJAVINE
-
-📍 POGOĐENE REGIJE:
-
-"""
-
-    for z in alert_zones:
-        msg += f"⚡ {z}\n"
-
-    msg += """
-
-🌩️ Moguće:
-• jaka grmljavina
-• lokalni pljuskovi
-• pojačan električni aktivitet
-
-⏰ Sustav provjerava svakih 30 minuta
-"""
+else:
+    print("MODE not set")
+    exit()
 
 # =========================
-# TELEGRAM SEND
+# DEBUG (OBAVEZNO)
 # =========================
-requests.post(
+print("TOKEN:", TOKEN)
+print("CHAT_ID:", CHAT_ID)
+print("MODE:", MODE)
+
+if not TOKEN or not CHAT_ID:
+    print("❌ Missing env vars")
+    exit()
+
+# =========================
+# SEND TELEGRAM
+# =========================
+resp = requests.post(
     f"https://api.telegram.org/bot{TOKEN}/sendMessage",
     data={
         "chat_id": CHAT_ID,
@@ -194,4 +147,7 @@ requests.post(
     }
 )
 
-print("✔ Poruka poslana")
+print("STATUS:", resp.status_code)
+print("RESPONSE:", resp.text)
+
+print("DONE")
