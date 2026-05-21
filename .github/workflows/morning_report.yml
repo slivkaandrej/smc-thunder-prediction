@@ -2,7 +2,7 @@ name: SMC Thunder
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # svake 5 min (auto check)
+    - cron: "*/5 * * * *"   # svake 5 min
   workflow_dispatch:
 
 jobs:
@@ -24,6 +24,6 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MODE: "report"
           RUN_TYPE: ${{ github.event_name }}
+          MODE: "report"
         run: python smc_thunder.py
