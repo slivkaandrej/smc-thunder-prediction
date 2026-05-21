@@ -2,6 +2,19 @@ import requests
 from datetime import datetime
 import os
 import sys
+import datetime as dt
+
+# =========================
+# ZA TESTIRANJE - lažiraj vrijeme (OBRIŠI POSLIJE TESTA)
+# =========================
+class FakeDateTime:
+    @staticmethod
+    def now():
+        # Postavi na 17:20 za test
+        return dt.datetime(2026, 5, 21, 17, 20, 0)
+datetime.now = FakeDateTime.now
+print("🔧 TEST MODE: Vrijeme je lažirano na 17:20")
+# =========================
 
 # =========================
 # TELEGRAM SETTINGS
