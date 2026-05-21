@@ -2,33 +2,58 @@ import requests
 from datetime import datetime
 import os
 
+# =========================
+# TELEGRAM SETTINGS
+# =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# report / alert mode
 MODE = os.getenv("MODE")
 
+# =========================
+# HRVATSKE REGIJE
+# =========================
 regije = {
-    "Zagreb": (45.81, 15.98),
-    "Istra": (45.24, 13.94),
-    "Rijeka": (45.33, 14.44),
-    "Gorski kotar": (45.40, 14.80),
-    "Lika": (44.55, 15.37),
-    "Slavonija": (45.56, 18.70),
-    "Dalmacija": (43.51, 16.44)
+    "Zagreb": (45.8150, 15.9819),
+    "Istra": (45.2400, 13.9367),
+    "Kvarner": (45.3271, 14.4422),
+    "Gorski kotar": (45.3986, 14.8019),
+    "Lika": (44.5461, 15.3747),
+    "Slavonija": (45.5550, 18.6955),
+    "Dalmacija": (43.5081, 16.4402)
 }
 
+# =========================
+# RIZIK GRMLJAVINE
+# =========================
 def rizik(cape, cloud, precip):
+
     score = 0
 
-    if cape > 1500: score += 3
-    elif cape > 800: score += 2
-    elif cape > 300: score += 1
+    # CAPE
+    if cape > 2000:
+        score += 4
+    elif cape > 1500:
+        score += 3
+    elif cape > 800:
+        score += 2
+    elif cape > 300:
+        score += 1
 
-    if cloud > 80: score += 2
-    elif cloud > 60: score += 1
+    # CLOUD
+    if cloud > 90:
+        score += 2
+    elif cloud > 70:
+        score += 1
 
-    if precip > 60: score += 2
-    elif precip > 30: score += 1
+    # PRECIP
+    if precip > 80:
+        score += 2
+    elif precip > 50:
+        score += 1
 
+    # FINAL
     if score <= 2:
         return "NIZAK"
     elif score <= 4:
@@ -38,63 +63,135 @@ def rizik(cape, cloud, precip):
     else:
         return "VRLO VISOK"
 
+# =========================
+# API FETCH
+# =========================
 results = []
 alert_zones = []
 
 for ime, (lat, lon) in regije.items():
 
-    url = "https://api.open-meteo.com/v1/forecast"
+    try:
 
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "hourly": "cape,cloudcover,precipitation_probability",
-        "past_days": 1,
-        "timezone": "UTC"
-    }
+        url = "https://api.open-meteo.com/v1/forecast"
 
-    data = requests.get(url, params=params).json()["hourly"]
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "hourly": "cape,cloudcover,precipitation_probability",
+            "forecast_days": 1,
+            "timezone": "Europe/Zagreb"
+        }
 
-    cape = max(data["cape"])
-    cloud = max(data["cloudcover"])
-    precip = max(data["precipitation_probability"])
+        r = requests.get(url, params=params, timeout=30)
 
-    level = rizik(cape, cloud, precip)
+        data = r.json()["hourly"]
 
-    results.append(f"{ime:15} {level}")
+        cape = max(data["cape"])
+        cloud = max(data["cloudcover"])
+        precip = max(data["precipitation_probability"])
 
-    if level == "VRLO VISOK":
-        alert_zones.append(ime)
+        level = rizik(cape, cloud, precip)
+
+        # emoji
+        if level == "NIZAK":
+            emoji = "🟢"
+        elif level == "UMJEREN":
+            emoji = "🟡"
+        elif level == "VISOK":
+            emoji = "🟠"
+        else:
+            emoji = "🔴"
+
+        results.append(f"{emoji} {ime:15} {level}")
+
+        if level == "VRLO VISOK":
+            alert_zones.append(ime)
+
+        print(
+            f"{ime} | CAPE={cape} CLOUD={cloud} PRECIP={precip} => {level}"
+        )
+
+    except Exception as e:
+
+        print("ERROR:", ime, e)
 
 # =========================
-# MODE LOGIKA
+# REPORT MODE
 # =========================
-
 if MODE == "report":
 
-    msg = "🌩️ SMC JUTARNJI IZVJEŠTAJ\n\n"
-    msg += f"📅 {datetime.utcnow().date()}\n\n"
+    hour = datetime.now().hour
 
-    msg += "📍 REGIJE:\n"
+    if hour < 12:
+        naslov = "🌅 JUTARNJI IZVJEŠTAJ"
+    else:
+        naslov = "🌤️ POPODNEVNI IZVJEŠTAJ"
+
+    msg = f"""
+╔══════════════════╗
+   🌩️ SMC THUNDER
+╚══════════════════╝
+
+{naslov}
+
+📅 {datetime.now().strftime("%d.%m.%Y")}
+
+📍 STANJE PO REGIJAMA
+
+"""
+
     msg += "\n".join(results)
 
-elif MODE == "alert":
+    msg += """
 
-    if not alert_zones:
-        print("No alert → exit")
-        exit()
-
-    msg = "🚨 SMC THUNDER ALERT\n\n"
-    msg += "🔴 VRLO VISOK RIZIK\n\n"
-    msg += "📍 Pogođeno:\n"
-    msg += "\n".join(alert_zones)
+━━━━━━━━━━━━━━━━━━
+🧠 SMC Meteorološki Model
+⚡ Automatski Storm Monitoring
+━━━━━━━━━━━━━━━━━━
+"""
 
 # =========================
-# SEND
+# ALERT MODE
+# =========================
+elif MODE == "alert":
+
+    # nema alarma
+    if not alert_zones:
+        print("Nema alarma.")
+        exit()
+
+    msg = f"""
+🚨🚨🚨 SMC THUNDER ALERT 🚨🚨🚨
+
+🔴 VRLO VISOK RIZIK GRMLJAVINE
+
+📍 POGOĐENE REGIJE:
+
+"""
+
+    for z in alert_zones:
+        msg += f"⚡ {z}\n"
+
+    msg += """
+
+🌩️ Moguće:
+• jaka grmljavina
+• lokalni pljuskovi
+• pojačan električni aktivitet
+
+⏰ Sustav provjerava svakih 30 minuta
+"""
+
+# =========================
+# TELEGRAM SEND
 # =========================
 requests.post(
     f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-    data={"chat_id": CHAT_ID, "text": msg}
+    data={
+        "chat_id": CHAT_ID,
+        "text": msg
+    }
 )
 
-print("sent")
+print("✔ Poruka poslana")
