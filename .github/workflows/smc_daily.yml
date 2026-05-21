@@ -1,9 +1,9 @@
 name: SMC Daily Reports
 
-on:
-  schedule:
-    - cron: '0 5,12 * * *'
+on: 
   workflow_dispatch:
+  schedule:
+    - cron: "0 5,12 * * *"
 
 jobs:
   run:
