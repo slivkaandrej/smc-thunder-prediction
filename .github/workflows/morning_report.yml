@@ -1,8 +1,8 @@
-name: SMC Morning Report
+name: SMC Morning Report - TEST
 
 on:
   schedule:
-    - cron: "0 5,12 * * *"   # 5:00 UTC i 12:00 UTC
+    - cron: "*/15 * * * *"   # Svakih 15 minuta (za test)
   workflow_dispatch:
 
 jobs:
