@@ -2,19 +2,6 @@ import requests
 from datetime import datetime
 import os
 import sys
-import datetime as dt
-
-# =========================
-# ZA TESTIRANJE - lažiraj vrijeme (OBRIŠI POSLIJE TESTA)
-# =========================
-class FakeDateTime:
-    @staticmethod
-    def now():
-        # Postavi na 17:20 za test
-        return dt.datetime(2026, 5, 21, 17, 20, 0)
-datetime.now = FakeDateTime.now
-print("🔧 TEST MODE: Vrijeme je lažirano na 17:20")
-# =========================
 
 # =========================
 # TELEGRAM SETTINGS
@@ -33,8 +20,8 @@ if MODE == "report" and not is_manual:
     now = datetime.now()
     print(f"Trenutno vrijeme: {now.hour}:{now.minute:02d}")
     
-    # TEST MODE - šalji u 17:20
-    if now.hour == 17 and now.minute >= 20 and now.minute <= 25:
+    # TEST MODE - šalji u 17:30
+    if now.hour == 17 and now.minute >= 30 and now.minute <= 35:
         print(f"✅ TEST: Šaljem poruku u {now.hour}:{now.minute:02d}")
     # Redovni termini - 7:00-7:20 i 14:00-14:20
     elif now.hour == 7 and now.minute <= 20:
@@ -43,7 +30,7 @@ if MODE == "report" and not is_manual:
         print(f"✅ Popodnevni report - šaljem u {now.hour}:{now.minute:02d}")
     else:
         print(f"⏭️ Preskačem automatski report u {now.hour}:{now.minute:02d}")
-        print(f"   (samo u 7:00-7:20, 14:00-14:20 ili 17:20-17:25 za TEST)")
+        print(f"   (samo u 7:00-7:20, 14:00-14:20 ili 17:30-17:35 za TEST)")
         sys.exit(0)
 elif MODE == "report" and is_manual:
     print("✅ Ručno pokretanje - šaljem report odmah!")
@@ -152,8 +139,8 @@ msg = ""
 
 if MODE == "report":
     hour = datetime.now().hour
-    if hour == 17:
-        naslov = "🧪 TESTNI IZVJEŠTAJ (17:20)"
+    if hour == 17 and now.minute >= 30:
+        naslov = "🧪 TESTNI IZVJEŠTAJ (17:30)"
     else:
         naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
 
