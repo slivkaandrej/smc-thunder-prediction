@@ -1,13 +1,36 @@
 import requests
 from datetime import datetime
 import os
+import pytz
+
+# =========================
+# TIMEZONE (ZAGREB)
+# =========================
+ZAGREB = pytz.timezone("Europe/Zagreb")
+now = datetime.now(ZAGREB)
+
+# =========================
+# SCHEDULER (LOCAL TIME GUARD)
+# =========================
+RUN_TIMES = [
+    (7, 15),
+    (15, 18)
+]
+
+should_run = any(now.hour == h and now.minute == m for h, m in RUN_TIMES)
+
+print(f"[INFO] Zagreb time: {now.strftime('%H:%M')}")
+
+if not should_run:
+    print("[INFO] Not scheduled time → exit")
+    exit(0)
 
 # =========================
 # TELEGRAM SETTINGS
 # =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-MODE = os.getenv("MODE")
+MODE = os.getenv("MODE", "report")
 
 # =========================
 # REGIJE
@@ -57,7 +80,7 @@ def rizik(cape, cloud, precip):
         return "VRLO VISOK"
 
 # =========================
-# MAIN
+# MAIN ANALYSIS
 # =========================
 results = []
 alert_zones = []
@@ -96,18 +119,18 @@ for ime, (lat, lon) in regije.items():
         print("ERROR:", ime, e)
 
 # =========================
-# MSG BUILD
+# MESSAGE BUILD
 # =========================
 msg = ""
 
 if MODE == "report":
-    hour = datetime.now().hour
-    naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
+    naslov = "🌅 JUTARNJI IZVJEŠTAJ" if now.hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
 
     msg = f"""🌩️ SMC THUNDER
 
 {naslov}
-📅 {datetime.now().strftime("%d.%m.%Y")}
+📅 {now.strftime("%d.%m.%Y")}
+🕒 {now.strftime("%H:%M")}
 
 📍 REGIJE:
 
@@ -115,26 +138,26 @@ if MODE == "report":
 
 elif MODE == "alert":
     if not alert_zones:
-        print("No alerts")
-        exit()
+        print("[INFO] No alerts")
+        exit(0)
 
     msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
     msg += "\n".join([f"⚡ {z}" for z in alert_zones])
 
 else:
     print("MODE not set")
-    exit()
+    exit(0)
 
 # =========================
-# DEBUG (OBAVEZNO)
+# VALIDATION
 # =========================
-print("TOKEN:", TOKEN)
-print("CHAT_ID:", CHAT_ID)
 print("MODE:", MODE)
+print("TOKEN OK:", bool(TOKEN))
+print("CHAT_ID OK:", bool(CHAT_ID))
 
 if not TOKEN or not CHAT_ID:
     print("❌ Missing env vars")
-    exit()
+    exit(1)
 
 # =========================
 # SEND TELEGRAM
@@ -149,5 +172,4 @@ resp = requests.post(
 
 print("STATUS:", resp.status_code)
 print("RESPONSE:", resp.text)
-
 print("DONE")
