@@ -2,7 +2,7 @@ name: SMC Morning Report - TEST
 
 on:
   schedule:
-    - cron: "*/2 * * * *"   # Svake 2 minute
+    - cron: "*/2 * * * *"
   workflow_dispatch:
 
 jobs:
