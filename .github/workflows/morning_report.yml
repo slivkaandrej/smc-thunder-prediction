@@ -2,7 +2,7 @@ name: SMC Morning Report - TEST
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # Svakih 15 minuta (za test)
+    - cron: "30 15 * * *"   # 17:30 po vašem vremenu
   workflow_dispatch:
 
 jobs:
