@@ -24,7 +24,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (sva područja)
 # =========================
 sve_mfg_grupe = {
     # Sjeverna Hrvatska (9xx)
@@ -34,10 +34,15 @@ sve_mfg_grupe = {
     "951": ("Sisak", 45.4851, 16.3787),
     "952": ("Kutina", 45.4750, 16.7819),
     "953": ("Daruvar", 45.5906, 17.2250),
+    "953": ("Požega", 45.3314, 17.6744),  # Dodano Požega
     "954": ("Slavonski Brod", 45.1603, 18.0156),
     "962": ("Osijek", 45.5550, 18.6955),
+    "962": ("Darda", 45.6261, 18.6997),  # Dodano Darda
+    "962": ("Bilje", 45.6069, 18.7439),  # Dodano Bilje
+    "962": ("Beli Manastir", 45.7700, 18.6036),  # Dodano Beli Manastir
     "963": ("Slatina", 45.7033, 17.7025),
-    "964": ("Vinkovci", 45.2883, 18.8047),
+    "964": ("Vinkovci", 45.2883, 18.8047),  # Dodano Vinkovci
+    "964": ("Ilok", 45.2222, 19.3769),  # Dodano Ilok
     
     # Kvarner i Istra (8xx)
     "841": ("Krk", 45.0260, 14.5780),
@@ -262,10 +267,14 @@ elif MODE == "weekly":
             
             # Spremi samo ako ima oluja
             if oluje:
-                rezultati_sa_olujama[mfg_id] = {
-                    "naziv": naziv,
-                    "oluje": oluje
-                }
+                # Ako već postoji ovaj MFG u rezultatima, spoji oluje
+                if mfg_id in rezultati_sa_olujama:
+                    rezultati_sa_olujama[mfg_id]["oluje"].extend(oluje)
+                else:
+                    rezultati_sa_olujama[mfg_id] = {
+                        "naziv": naziv,
+                        "oluje": oluje
+                    }
             
             print(f"MFG {mfg_id} ({naziv}): {len(oluje)} dana s olujom")
             
@@ -276,8 +285,10 @@ elif MODE == "weekly":
     if rezultati_sa_olujama:
         msg_parts = []
         for mfg_id, podaci in rezultati_sa_olujama.items():
+            # Ukloni duplikate oluja (isti dan, ista poruka)
+            jedinstvene_oluje = list(dict.fromkeys(podaci['oluje']))
             msg_parts.append(f"🔵 MFG {mfg_id} ({podaci['naziv']}):")
-            msg_parts.extend(podaci['oluje'])
+            msg_parts.extend(jedinstvene_oluje)
             msg_parts.append("")
         
         msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
