@@ -24,22 +24,27 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (optimizirano ~35 grupa)
 # =========================
 sve_mfg_grupe = {
-    # Sjeverna Hrvatska (9xx)
+    # ========== SJEVERNA HRVATSKA (9xx) ==========
     "942": ("Varaždin", 46.3044, 16.3378),
     "944": ("Koprivnica", 46.1625, 16.8278),
     "945": ("Bjelovar", 45.8986, 16.8489),
     "951": ("Sisak", 45.4851, 16.3787),
     "952": ("Kutina", 45.4750, 16.7819),
     "953": ("Daruvar", 45.5906, 17.2250),
+    "953b": ("Požega", 45.3314, 17.6744),  # DODANO - Požega
     "954": ("Slavonski Brod", 45.1603, 18.0156),
     "962": ("Osijek", 45.5550, 18.6955),
+    "962b": ("Beli Manastir", 45.7700, 18.6036),  # DODANO
+    "962c": ("Bilje", 45.6069, 18.7439),  # DODANO
+    "962d": ("Darda", 45.6281, 18.6997),  # DODANO
     "963": ("Slatina", 45.7033, 17.7025),
-    "964": ("Vinkovci", 45.2883, 18.8047),
+    "964": ("Vinkovci", 45.2883, 18.8047),  # DODANO
+    "964b": ("Ilok", 45.2222, 19.3769),  # DODANO
     
-    # Kvarner i Istra (8xx)
+    # ========== KVARNER I ISTRA (8xx) ==========
     "841": ("Krk", 45.0260, 14.5780),
     "842": ("Crikvenica", 45.1667, 14.6833),
     "843": ("Opatija", 45.3333, 14.3000),
@@ -48,11 +53,11 @@ sve_mfg_grupe = {
     "852": ("Rovinj", 45.0833, 13.6333),
     "854": ("Umag", 45.4333, 13.5167),
     
-    # Gorski kotar i Lika (8xx)
+    # ========== GORSKI KOTAR I LIKA (8xx) ==========
     "831": ("Ogulin", 45.2667, 15.2167),
     "832": ("Karlovac", 45.4872, 15.5478),
     
-    # Dalmacija (7xx)
+    # ========== DALMACIJA (7xx) ==========
     "711": ("Dubrovnik", 42.6507, 18.0944),
     "713": ("Korčula", 42.9600, 17.1300),
     "715": ("Imotski", 43.4400, 17.2100),
@@ -66,7 +71,7 @@ sve_mfg_grupe = {
     "734": ("Biograd", 43.9333, 15.4333),
     "735": ("Šibenik", 43.7350, 15.8957),
     
-    # Zagrebačka regija
+    # ========== ZAGREBAČKA REGIJA (6xx) ==========
     "624": ("Samobor", 45.8000, 15.7200),
     "634": ("Velika Gorica", 45.7100, 16.0700),
     "611": ("Zagreb Centar", 45.8150, 15.9819),
@@ -83,7 +88,6 @@ sve_mfg_grupe = {
 def rizik(cape, cloud, precip, weathercode):
     score = 0
     
-    # CAPE bodovi
     if cape > 2000:
         score += 4
     elif cape > 1500:
@@ -93,19 +97,16 @@ def rizik(cape, cloud, precip, weathercode):
     elif cape > 300:
         score += 1
     
-    # Naoblaka
     if cloud > 90:
         score += 2
     elif cloud > 70:
         score += 1
     
-    # Oborine
     if precip > 80:
         score += 2
     elif precip > 50:
         score += 1
     
-    # Grmljavina prema weathercode-u
     if weathercode in [95, 96, 99]:
         score += 3
     
@@ -118,9 +119,6 @@ def rizik(cape, cloud, precip, weathercode):
     else:
         return "VRLO VISOK"
 
-# =========================
-# FUNKCIJA ZA OPIS GRMLJAVINE
-# =========================
 def opis_grmljavine(weathercode):
     if weathercode == 99:
         return "⚡⚡ JAKA GRMLJAVINA S TUČOM! ⚡⚡"
@@ -141,6 +139,7 @@ def opis_grmljavine(weathercode):
 print(f"\n{'='*50}")
 print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Mod: {MODE}")
+print(f"Broj MFG lokacija: {len(sve_mfg_grupe)}")
 print(f"{'='*50}\n")
 
 # =========================
@@ -197,7 +196,7 @@ if MODE == "report":
         msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
 
 # =========================
-# MODE: ALERT (upozorenje - samo VRLO VISOK ili grmljavina)
+# MODE: ALERT (upozorenje)
 # =========================
 elif MODE == "alert":
     alert_regije = []
@@ -241,8 +240,8 @@ elif MODE == "alert":
 # MODE: WEEKLY (tjedni izvještaj - SAMO PODRUČJA S OLUJAMA)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj - SAMO područja s olujama...")
-    print(f"Broj MFG grupa: {len(sve_mfg_grupe)}")
+    print("📊 Generiram tjedni izvještaj - SAMO mjesta s olujama...")
+    print(f"Broj lokacija: {len(sve_mfg_grupe)}")
     
     end_date = datetime.now() - timedelta(days=1)
     start_date = end_date - timedelta(days=6)
@@ -291,9 +290,8 @@ elif MODE == "weekly":
                 max_weather = max(weather_vrijednosti) if weather_vrijednosti else 0
                 
                 if max_cape >= 800 or max_weather in [95, 96, 99]:
-                    grmljavina = opis_grmljavine(max_weather)
                     if max_weather in [95, 96, 99]:
-                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | {grmljavina}")
+                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | {opis_grmljavine(max_weather)}")
                     else:
                         oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f}")
             
@@ -303,15 +301,16 @@ elif MODE == "weekly":
                     "oluje": oluje
                 }
             
-            print(f"MFG {mfg_id} ({naziv}): {len(oluje)} dana s olujom")
+            if oluje:
+                print(f"📍 {naziv}: {len(oluje)} dana s olujom")
             
         except Exception as e:
-            print(f"ERROR - MFG {mfg_id}: {e}")
+            print(f"ERROR - {naziv}: {e}")
     
     if rezultati_sa_olujama:
         msg_parts = []
         for mfg_id, podaci in rezultati_sa_olujama.items():
-            msg_parts.append(f"🔵 MFG {mfg_id} ({podaci['naziv']}):")
+            msg_parts.append(f"🔵 {podaci['naziv']}:")
             msg_parts.extend(podaci['oluje'])
             msg_parts.append("")
         
@@ -319,6 +318,7 @@ elif MODE == "weekly":
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
+📍 Prikazana su samo mjesta gdje je bilo oluja (CAPE ≥ 800)
 
 """ + "\n".join(msg_parts) + """
 📌 Legenda:
@@ -332,7 +332,7 @@ elif MODE == "weekly":
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
-✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području
+✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom mjestu
 """
 
 else:
