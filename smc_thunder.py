@@ -224,7 +224,7 @@ elif MODE == "weekly":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            # Koristimo forecast API s past_days za svježe podatke (ne ERA5 koji kasni)
+            # Koristimo forecast API s past_days za svježe podatke
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
@@ -298,9 +298,6 @@ elif MODE == "weekly":
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
 ✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području (CAPE < 800)
-
-📌 CAPE 800-1500 = oluja
-📌 CAPE ≥ 1500 = jaka oluja
 """
 
 else:
