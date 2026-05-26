@@ -78,9 +78,9 @@ sve_mfg_grupe = {
 }
 
 # =========================
-# RIZIK FUNKCIJA (s LPI)
+# FUNKCIJA ZA RIZIK
 # =========================
-def rizik(cape, lpi):
+def rizik(cape, cloud, precip, weathercode):
     score = 0
     
     # CAPE bodovi
@@ -93,13 +93,21 @@ def rizik(cape, lpi):
     elif cape > 300:
         score += 1
     
-    # LPI bodovi (lightning potential)
-    if lpi > 80:
-        score += 3
-    elif lpi > 60:
+    # Naoblaka
+    if cloud > 90:
         score += 2
-    elif lpi > 40:
+    elif cloud > 70:
         score += 1
+    
+    # Oborine
+    if precip > 80:
+        score += 2
+    elif precip > 50:
+        score += 1
+    
+    # Grmljavina prema weathercode-u
+    if weathercode in [95, 96, 99]:
+        score += 3
     
     if score <= 2:
         return "NIZAK"
@@ -110,17 +118,22 @@ def rizik(cape, lpi):
     else:
         return "VRLO VISOK"
 
-def lpi_tekst(lpi):
-    if lpi >= 80:
-        return "⚡⚡ GRMLJAVINA VRLO VJEROJATNA ⚡⚡"
-    elif lpi >= 60:
-        return "⚡ GRMLJAVINA VJEROJATNA ⚡"
-    elif lpi >= 30:
-        return "🌩️ Umjerena vjerojatnost grmljavine"
-    elif lpi >= 10:
-        return "🌥️ Slaba vjerojatnost grmljavine"
+# =========================
+# FUNKCIJA ZA OPIS GRMLJAVINE
+# =========================
+def opis_grmljavine(weathercode):
+    if weathercode == 99:
+        return "⚡⚡ JAKA GRMLJAVINA S TUČOM! ⚡⚡"
+    elif weathercode == 96:
+        return "⚡ GRMLJAVINA S TUČOM ⚡"
+    elif weathercode == 95:
+        return "🌩️ GRMLJAVINA"
+    elif weathercode in [80, 81, 82]:
+        return "🌧️ JAKA KIŠA"
+    elif weathercode in [61, 63, 65]:
+        return "🌧️ KIŠA"
     else:
-        return "☀️ Grmljavina nije vjerojatna"
+        return "☀️ SUHO"
 
 # =========================
 # MAIN
@@ -131,11 +144,11 @@ print(f"Mod: {MODE}")
 print(f"{'='*50}\n")
 
 # =========================
-# MODE: REPORT (dnevni izvještaj - s LPI)
+# MODE: REPORT (dnevni izvještaj)
 # =========================
 if MODE == "report":
     results = []
-    lpi_upozorenja = []
+    grmljavina_upozorenja = []
     
     for ime, (lat, lon) in regije.items():
         try:
@@ -143,7 +156,7 @@ if MODE == "report":
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,lightning_potential",
+                "hourly": "cape,cloudcover,precipitation_probability,weathercode",
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
@@ -151,16 +164,19 @@ if MODE == "report":
             data = r.json()["hourly"]
 
             max_cape = max(data["cape"])
-            max_lpi = max(data["lightning_potential"])
-            level = rizik(max_cape, max_lpi)
-            emoji = "🟢" if level == "NIZAK" else "🟡" if level == "UMJEREN" else "🟠" if level == "VISOK" else "🔴"
-
-            results.append(f"{emoji} {ime:15} {level} | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}%")
-            print(f"{ime:15} | CAPE={max_cape:4.0f} LPI={max_lpi:3.0f}% => {level}")
+            max_cloud = max(data["cloudcover"])
+            max_precip = max(data["precipitation_probability"])
+            max_weathercode = max(data["weathercode"])
             
-            # Dodaj u upozorenja ako je LPI visok
-            if max_lpi >= 60:
-                lpi_upozorenja.append(f"⚠️ {ime}: {lpi_tekst(max_lpi)} (CAPE {max_cape:.0f})")
+            level = rizik(max_cape, max_cloud, max_precip, max_weathercode)
+            emoji = "🟢" if level == "NIZAK" else "🟡" if level == "UMJEREN" else "🟠" if level == "VISOK" else "🔴"
+            grmljavina = opis_grmljavine(max_weathercode)
+
+            results.append(f"{emoji} {ime:15} {level:10} | CAPE {max_cape:.0f} | {grmljavina}")
+            print(f"{ime:15} | CAPE={max_cape:4.0f} WEATHERCODE={max_weathercode} => {level}")
+            
+            if max_weathercode in [95, 96, 99]:
+                grmljavina_upozorenja.append(f"⚠️ {ime}: {grmljavina} (CAPE {max_cape:.0f})")
             
         except Exception as e:
             print(f"ERROR - {ime}: {e}")
@@ -177,11 +193,11 @@ if MODE == "report":
 
 """ + "\n".join(results)
 
-    if lpi_upozorenja:
-        msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(lpi_upozorenja)
+    if grmljavina_upozorenja:
+        msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
 
 # =========================
-# MODE: ALERT (upozorenje - s LPI)
+# MODE: ALERT (upozorenje - samo VRLO VISOK ili grmljavina)
 # =========================
 elif MODE == "alert":
     alert_regije = []
@@ -192,7 +208,7 @@ elif MODE == "alert":
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,lightning_potential",
+                "hourly": "cape,cloudcover,precipitation_probability,weathercode",
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
@@ -200,45 +216,44 @@ elif MODE == "alert":
             data = r.json()["hourly"]
 
             max_cape = max(data["cape"])
-            max_lpi = max(data["lightning_potential"])
-            level = rizik(max_cape, max_lpi)
+            max_cloud = max(data["cloudcover"])
+            max_precip = max(data["precipitation_probability"])
+            max_weathercode = max(data["weathercode"])
+            level = rizik(max_cape, max_cloud, max_precip, max_weathercode)
 
-            if level == "VRLO VISOK":
-                alert_regije.append(f"⚡ {ime} | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}%")
+            if level == "VRLO VISOK" or max_weathercode in [95, 96, 99]:
+                alert_regije.append(f"⚡ {ime} | CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}")
             
-            print(f"{ime:15} | CAPE={max_cape:4.0f} LPI={max_lpi:3.0f}% => {level}")
+            print(f"{ime:15} | CAPE={max_cape:4.0f} WEATHERCODE={max_weathercode} => {level}")
         except Exception as e:
             print(f"ERROR - {ime}: {e}")
 
     if not alert_regije:
-        print("✅ Nema regija s vrlo visokim rizikom - ne šaljem poruku")
+        print("✅ Nema alarma - ne šaljem poruku")
         sys.exit(0)
     
-    msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
+    msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK ILI GRMLJAVINA:\n\n"
     msg += "\n".join(alert_regije)
     msg += f"\n\n📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}"
-    msg += "\n\n⚠️ Preporuka: Pratite razvoj situacije, moguće jako nevrijeme s grmljavinom!"
+    msg += "\n\n⚠️ Preporuka: Pratite razvoj situacije!"
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - s LPI, SAMO PODRUČJA S OLUJAMA)
+# MODE: WEEKLY (tjedni izvještaj - SAMO PODRUČJA S OLUJAMA)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj oluja s LPI - SAMO područja s olujama...")
+    print("📊 Generiram tjedni izvještaj - SAMO područja s olujama...")
     print(f"Broj MFG grupa: {len(sve_mfg_grupe)}")
     
-    # Gledamo zadnjih 7 dana (od jučer unazad)
     end_date = datetime.now() - timedelta(days=1)
     start_date = end_date - timedelta(days=6)
     
     print(f"Period: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
     
-    # Dohvati datume
     datumi = []
     for i in range(7):
         dan = start_date + timedelta(days=i)
         datumi.append(dan.strftime("%d.%m."))
     
-    # Rječnik za rezultate (samo tamo gdje ima oluja)
     rezultati_sa_olujama = {}
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
@@ -247,7 +262,7 @@ elif MODE == "weekly":
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,lightning_potential",
+                "hourly": "cape,weathercode",
                 "past_days": 7,
                 "forecast_days": 0,
                 "timezone": "Europe/Zagreb"
@@ -266,22 +281,22 @@ elif MODE == "weekly":
                 if end > len(data["cape"]):
                     break
                 
-                # Filtriraj None vrijednosti
                 cape_vrijednosti = [x for x in data["cape"][start:end] if x is not None]
-                lpi_vrijednosti = [x for x in data["lightning_potential"][start:end] if x is not None]
+                weather_vrijednosti = [x for x in data["weathercode"][start:end] if x is not None]
                 
                 if not cape_vrijednosti:
                     continue
                     
                 max_cape = max(cape_vrijednosti)
-                max_lpi = max(lpi_vrijednosti) if lpi_vrijednosti else 0
+                max_weather = max(weather_vrijednosti) if weather_vrijednosti else 0
                 
-                if max_cape >= 1500:
-                    oluje.append(f"   • {datumi[dan]} 🌩️ JAKA OLUJA | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}% ({lpi_tekst(max_lpi)})")
-                elif max_cape >= 800:
-                    oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}% ({lpi_tekst(max_lpi)})")
+                if max_cape >= 800 or max_weather in [95, 96, 99]:
+                    grmljavina = opis_grmljavine(max_weather)
+                    if max_weather in [95, 96, 99]:
+                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | {grmljavina}")
+                    else:
+                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f}")
             
-            # Spremi samo ako ima oluja
             if oluje:
                 rezultati_sa_olujama[mfg_id] = {
                     "naziv": naziv,
@@ -293,7 +308,6 @@ elif MODE == "weekly":
         except Exception as e:
             print(f"ERROR - MFG {mfg_id}: {e}")
     
-    # Kreiraj poruku samo s područjima koja su imala oluje
     if rezultati_sa_olujama:
         msg_parts = []
         for mfg_id, podaci in rezultati_sa_olujama.items():
@@ -305,16 +319,12 @@ elif MODE == "weekly":
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
-⚠️ Prikazana su samo područja gdje je bilo oluja (CAPE ≥ 800)
 
 """ + "\n".join(msg_parts) + """
 📌 Legenda:
-⛈️ = oluja (CAPE 800-1500)
-🌩️ = jaka oluja (CAPE ≥ 1500)
-LPI = vjerojatnost grmljavine (0-100%)
-• LPI > 60% = visoka vjerojatnost munja
-• LPI 30-60% = umjerena vjerojatnost
-• LPI < 30% = mala vjerojatnost
+🌩️ = grmljavina
+⚡ = grmljavina s tučom
+⚡⚡ = jaka grmljavina s tučom
 """
     else:
         msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
@@ -322,11 +332,7 @@ LPI = vjerojatnost grmljavine (0-100%)
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
-✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području (CAPE < 800)
-
-📌 CAPE 800-1500 = oluja
-📌 CAPE ≥ 1500 = jaka oluja
-📌 LPI = vjerojatnost grmljavine
+✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području
 """
 
 else:
@@ -337,9 +343,7 @@ else:
 # SEND TELEGRAM
 # =========================
 if not TOKEN or not CHAT_ID:
-    print("❌ Missing environment variables:")
-    print(f"   TOKEN: {'SET' if TOKEN else 'MISSING'}")
-    print(f"   CHAT_ID: {'SET' if CHAT_ID else 'MISSING'}")
+    print("❌ Missing environment variables")
     sys.exit(1)
 
 print("\n📤 Šaljem Telegram poruku...")
