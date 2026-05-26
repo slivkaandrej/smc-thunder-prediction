@@ -24,7 +24,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (sva područja)
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
 # =========================
 sve_mfg_grupe = {
     # Sjeverna Hrvatska (9xx)
@@ -34,15 +34,10 @@ sve_mfg_grupe = {
     "951": ("Sisak", 45.4851, 16.3787),
     "952": ("Kutina", 45.4750, 16.7819),
     "953": ("Daruvar", 45.5906, 17.2250),
-    "953": ("Požega", 45.3314, 17.6744),  # Dodano Požega
     "954": ("Slavonski Brod", 45.1603, 18.0156),
     "962": ("Osijek", 45.5550, 18.6955),
-    "962": ("Darda", 45.6261, 18.6997),  # Dodano Darda
-    "962": ("Bilje", 45.6069, 18.7439),  # Dodano Bilje
-    "962": ("Beli Manastir", 45.7700, 18.6036),  # Dodano Beli Manastir
     "963": ("Slatina", 45.7033, 17.7025),
-    "964": ("Vinkovci", 45.2883, 18.8047),  # Dodano Vinkovci
-    "964": ("Ilok", 45.2222, 19.3769),  # Dodano Ilok
+    "964": ("Vinkovci", 45.2883, 18.8047),
     
     # Kvarner i Istra (8xx)
     "841": ("Krk", 45.0260, 14.5780),
@@ -83,11 +78,12 @@ sve_mfg_grupe = {
 }
 
 # =========================
-# RIZIK FUNKCIJA
+# RIZIK FUNKCIJA (s LPI)
 # =========================
-def rizik(cape, cloud, precip):
+def rizik(cape, lpi):
     score = 0
-
+    
+    # CAPE bodovi
     if cape > 2000:
         score += 4
     elif cape > 1500:
@@ -96,17 +92,15 @@ def rizik(cape, cloud, precip):
         score += 2
     elif cape > 300:
         score += 1
-
-    if cloud > 90:
+    
+    # LPI bodovi (lightning potential)
+    if lpi > 80:
+        score += 3
+    elif lpi > 60:
         score += 2
-    elif cloud > 70:
+    elif lpi > 40:
         score += 1
-
-    if precip > 80:
-        score += 2
-    elif precip > 50:
-        score += 1
-
+    
     if score <= 2:
         return "NIZAK"
     elif score <= 4:
@@ -115,6 +109,18 @@ def rizik(cape, cloud, precip):
         return "VISOK"
     else:
         return "VRLO VISOK"
+
+def lpi_tekst(lpi):
+    if lpi >= 80:
+        return "⚡⚡ GRMLJAVINA VRLO VJEROJATNA ⚡⚡"
+    elif lpi >= 60:
+        return "⚡ GRMLJAVINA VJEROJATNA ⚡"
+    elif lpi >= 30:
+        return "🌩️ Umjerena vjerojatnost grmljavine"
+    elif lpi >= 10:
+        return "🌥️ Slaba vjerojatnost grmljavine"
+    else:
+        return "☀️ Grmljavina nije vjerojatna"
 
 # =========================
 # MAIN
@@ -125,10 +131,11 @@ print(f"Mod: {MODE}")
 print(f"{'='*50}\n")
 
 # =========================
-# MODE: REPORT (dnevni izvještaj - brzo, 7 regija)
+# MODE: REPORT (dnevni izvještaj - s LPI)
 # =========================
 if MODE == "report":
     results = []
+    lpi_upozorenja = []
     
     for ime, (lat, lon) in regije.items():
         try:
@@ -136,21 +143,25 @@ if MODE == "report":
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,cloudcover,precipitation_probability",
+                "hourly": "cape,lightning_potential",
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
             r = requests.get(url, params=params, timeout=30)
             data = r.json()["hourly"]
 
-            cape = max(data["cape"])
-            cloud = max(data["cloudcover"])
-            precip = max(data["precipitation_probability"])
-            level = rizik(cape, cloud, precip)
+            max_cape = max(data["cape"])
+            max_lpi = max(data["lightning_potential"])
+            level = rizik(max_cape, max_lpi)
             emoji = "🟢" if level == "NIZAK" else "🟡" if level == "UMJEREN" else "🟠" if level == "VISOK" else "🔴"
 
-            results.append(f"{emoji} {ime:15} {level}")
-            print(f"{ime:15} | CAPE={cape:4.0f} CLOUD={cloud:3.0f}% PRECIP={precip:3.0f}% => {level}")
+            results.append(f"{emoji} {ime:15} {level} | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}%")
+            print(f"{ime:15} | CAPE={max_cape:4.0f} LPI={max_lpi:3.0f}% => {level}")
+            
+            # Dodaj u upozorenja ako je LPI visok
+            if max_lpi >= 60:
+                lpi_upozorenja.append(f"⚠️ {ime}: {lpi_tekst(max_lpi)} (CAPE {max_cape:.0f})")
+            
         except Exception as e:
             print(f"ERROR - {ime}: {e}")
 
@@ -166,8 +177,11 @@ if MODE == "report":
 
 """ + "\n".join(results)
 
+    if lpi_upozorenja:
+        msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(lpi_upozorenja)
+
 # =========================
-# MODE: ALERT (upozorenje - samo VRLO VISOK)
+# MODE: ALERT (upozorenje - s LPI)
 # =========================
 elif MODE == "alert":
     alert_regije = []
@@ -178,22 +192,21 @@ elif MODE == "alert":
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,cloudcover,precipitation_probability",
+                "hourly": "cape,lightning_potential",
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
             r = requests.get(url, params=params, timeout=30)
             data = r.json()["hourly"]
 
-            cape = max(data["cape"])
-            cloud = max(data["cloudcover"])
-            precip = max(data["precipitation_probability"])
-            level = rizik(cape, cloud, precip)
+            max_cape = max(data["cape"])
+            max_lpi = max(data["lightning_potential"])
+            level = rizik(max_cape, max_lpi)
 
             if level == "VRLO VISOK":
-                alert_regije.append(ime)
+                alert_regije.append(f"⚡ {ime} | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}%")
             
-            print(f"{ime:15} | CAPE={cape:4.0f} => {level}")
+            print(f"{ime:15} | CAPE={max_cape:4.0f} LPI={max_lpi:3.0f}% => {level}")
         except Exception as e:
             print(f"ERROR - {ime}: {e}")
 
@@ -202,19 +215,20 @@ elif MODE == "alert":
         sys.exit(0)
     
     msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK:\n\n"
-    msg += "\n".join([f"⚡ {r}" for r in alert_regije])
+    msg += "\n".join(alert_regije)
     msg += f"\n\n📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}"
+    msg += "\n\n⚠️ Preporuka: Pratite razvoj situacije, moguće jako nevrijeme s grmljavinom!"
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - SAMO PODRUČJA S OLUJAMA)
+# MODE: WEEKLY (tjedni izvještaj - s LPI, SAMO PODRUČJA S OLUJAMA)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj oluja - SAMO područja s olujama...")
+    print("📊 Generiram tjedni izvještaj oluja s LPI - SAMO područja s olujama...")
     print(f"Broj MFG grupa: {len(sve_mfg_grupe)}")
     
     # Gledamo zadnjih 7 dana (od jučer unazad)
-    end_date = datetime.now() - timedelta(days=1)   # jučer
-    start_date = end_date - timedelta(days=6)       # 7 dana unazad (uključujući jučer)
+    end_date = datetime.now() - timedelta(days=1)
+    start_date = end_date - timedelta(days=6)
     
     print(f"Period: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
     
@@ -229,12 +243,11 @@ elif MODE == "weekly":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            # Koristimo forecast API s past_days za svježe podatke
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape",
+                "hourly": "cape,lightning_potential",
                 "past_days": 7,
                 "forecast_days": 0,
                 "timezone": "Europe/Zagreb"
@@ -254,27 +267,26 @@ elif MODE == "weekly":
                     break
                 
                 # Filtriraj None vrijednosti
-                vrijednosti = [x for x in data["cape"][start:end] if x is not None]
-                if not vrijednosti:
+                cape_vrijednosti = [x for x in data["cape"][start:end] if x is not None]
+                lpi_vrijednosti = [x for x in data["lightning_potential"][start:end] if x is not None]
+                
+                if not cape_vrijednosti:
                     continue
                     
-                max_cape = max(vrijednosti)
+                max_cape = max(cape_vrijednosti)
+                max_lpi = max(lpi_vrijednosti) if lpi_vrijednosti else 0
                 
                 if max_cape >= 1500:
-                    oluje.append(f"   • {datumi[dan]} 🌩️ JAKA OLUJA (CAPE {max_cape:.0f})")
+                    oluje.append(f"   • {datumi[dan]} 🌩️ JAKA OLUJA | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}% ({lpi_tekst(max_lpi)})")
                 elif max_cape >= 800:
-                    oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA (CAPE {max_cape:.0f})")
+                    oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | LPI {max_lpi:.0f}% ({lpi_tekst(max_lpi)})")
             
             # Spremi samo ako ima oluja
             if oluje:
-                # Ako već postoji ovaj MFG u rezultatima, spoji oluje
-                if mfg_id in rezultati_sa_olujama:
-                    rezultati_sa_olujama[mfg_id]["oluje"].extend(oluje)
-                else:
-                    rezultati_sa_olujama[mfg_id] = {
-                        "naziv": naziv,
-                        "oluje": oluje
-                    }
+                rezultati_sa_olujama[mfg_id] = {
+                    "naziv": naziv,
+                    "oluje": oluje
+                }
             
             print(f"MFG {mfg_id} ({naziv}): {len(oluje)} dana s olujom")
             
@@ -285,10 +297,8 @@ elif MODE == "weekly":
     if rezultati_sa_olujama:
         msg_parts = []
         for mfg_id, podaci in rezultati_sa_olujama.items():
-            # Ukloni duplikate oluja (isti dan, ista poruka)
-            jedinstvene_oluje = list(dict.fromkeys(podaci['oluje']))
             msg_parts.append(f"🔵 MFG {mfg_id} ({podaci['naziv']}):")
-            msg_parts.extend(jedinstvene_oluje)
+            msg_parts.extend(podaci['oluje'])
             msg_parts.append("")
         
         msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
@@ -301,6 +311,10 @@ elif MODE == "weekly":
 📌 Legenda:
 ⛈️ = oluja (CAPE 800-1500)
 🌩️ = jaka oluja (CAPE ≥ 1500)
+LPI = vjerojatnost grmljavine (0-100%)
+• LPI > 60% = visoka vjerojatnost munja
+• LPI 30-60% = umjerena vjerojatnost
+• LPI < 30% = mala vjerojatnost
 """
     else:
         msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
@@ -309,6 +323,10 @@ elif MODE == "weekly":
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
 ✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom području (CAPE < 800)
+
+📌 CAPE 800-1500 = oluja
+📌 CAPE ≥ 1500 = jaka oluja
+📌 LPI = vjerojatnost grmljavine
 """
 
 else:
