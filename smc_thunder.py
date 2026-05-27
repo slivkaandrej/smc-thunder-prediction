@@ -13,9 +13,9 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE")
 
 # =========================
-# TELEGRAM GRUPA (zamijeni sa svojim CHAT_ID)
+# TELEGRAM SUPERGRUPA (ispravljen CHAT_ID)
 # =========================
-GROUP_CHAT_ID = -5261274719  # Tvoj CHAT_ID grupe!
+GROUP_CHAT_ID = -1003803468625  # NOVI CHAT_ID supergrupe!
 
 # =========================
 # REGIJE ZA BRZE IZVJEŠTAJE
@@ -94,7 +94,7 @@ regije_mfg = {
 }
 
 def posalji_u_grupu(poruka):
-    """Pošalji poruku u Telegram grupu"""
+    """Pošalji poruku u Telegram supergrupu"""
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
