@@ -39,7 +39,7 @@ sve_mfg_grupe = {
     "953b": ("Požega", 45.3314, 17.6744),
     "954": ("Slavonski Brod", 45.1603, 18.0156),
     
-    # ========== OSIJEK I OKOLICA (962) ==========
+    # ========== OSIJEK I OKOLICA ==========
     "962": ("Osijek Centar / Istok", 45.5550, 18.6955),
     "961a": ("Osijek Zapad (Višnjevac)", 45.56861, 18.61389),
     "961b": ("Osijek Jug (Tenja)", 45.498, 18.747),
@@ -56,13 +56,13 @@ sve_mfg_grupe = {
     "842": ("Crikvenica", 45.1667, 14.6833),
     "843": ("Opatija", 45.3333, 14.3000),
     "845": ("Rijeka", 45.3271, 14.4422),
+    "845b": ("Delnice", 45.4000, 14.8000),  # ISPRAVLJENO - Delnice su 845
     "851": ("Pula", 44.8667, 13.8500),
     "852": ("Rovinj", 45.0833, 13.6333),
     "854": ("Umag", 45.4333, 13.5167),
     
     # ========== GORSKI KOTAR I LIKA (8xx) ==========
     "831": ("Ogulin", 45.2667, 15.2167),
-    "831b": ("Delnice", 45.4000, 14.8000),  # DODANO - Delnice
     "832": ("Karlovac", 45.4872, 15.5478),
     
     # ========== DALMACIJA (7xx) ==========
@@ -95,8 +95,8 @@ sve_mfg_grupe = {
 # =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
-    "🏔️ GORSKA HRVATSKA": ["831", "831b", "832"],
-    "🌊 KVARNER I ISTRA": ["841", "842", "843", "845", "851", "852", "854"],
+    "🏔️ GORSKA HRVATSKA": ["831", "832"],
+    "🌊 KVARNER I ISTRA": ["841", "842", "843", "845", "845b", "851", "852", "854"],
     "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "723", "724", "725", "731", "733", "734", "735"],
     "🏙️ ZAGREB I OKOLICA": ["624", "634", "611", "613", "614", "621", "622", "633"],
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
@@ -270,7 +270,6 @@ elif MODE == "alert":
             max_precip = max(data["precipitation_probability"])
             max_weathercode = max(data["weathercode"])
             
-            # Jednostavna procjena rizika za alert
             nivo_rizika = "NIZAK"
             if max_cape > 2000 or max_weathercode in [95, 96, 99]:
                 nivo_rizika = "VRLO VISOK"
@@ -292,7 +291,6 @@ elif MODE == "alert":
         except Exception as e:
             print(f"ERROR - MFG {mfg_id} ({naziv}): {e}")
     
-    # Spremi nove alerte u povijest
     for alert_id, detalj in novi_alerti:
         spremi_alert(alert_id, detalj)
     
@@ -300,7 +298,6 @@ elif MODE == "alert":
         print("✅ Nema novih alarma - ne šaljem poruku")
         sys.exit(0)
     
-    # Grupiraj alert po regijama za preglednost
     alerti_po_regijama = defaultdict(list)
     
     for alert in alert_mfg:
@@ -314,7 +311,6 @@ elif MODE == "alert":
         
         alerti_po_regijama[regija_pripada].append(alert)
     
-    # Kreiraj poruku grupiranu po regijama
     msg_parts = []
     for regija_naziv, alerti in alerti_po_regijama.items():
         msg_parts.append(f"\n📌 {regija_naziv}")
