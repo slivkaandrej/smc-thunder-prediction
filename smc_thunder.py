@@ -24,7 +24,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (optimizirano ~35 grupa)
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (samo grmljavina)
 # =========================
 sve_mfg_grupe = {
     # ========== SJEVERNA HRVATSKA (9xx) ==========
@@ -37,13 +37,14 @@ sve_mfg_grupe = {
     "953b": ("Požega", 45.3314, 17.6744),
     "954": ("Slavonski Brod", 45.1603, 18.0156),
     
-    # ========== OSIJEK I OKOLICA ==========
+    # ========== OSIJEK I OKOLICA (962) ==========
     "962": ("Osijek Centar / Istok", 45.5550, 18.6955),
     "961a": ("Osijek Zapad (Višnjevac)", 45.56861, 18.61389),
     "961b": ("Osijek Jug (Tenja)", 45.498, 18.747),
     "962b": ("Beli Manastir", 45.7700, 18.6036),
     "962c": ("Bilje", 45.6069, 18.7439),
     "962d": ("Darda", 45.6281, 18.6997),
+    "962e": ("Kotlina", 45.6600, 18.7000),  # DODANO - Kotlina
     "963": ("Slatina", 45.7033, 17.7025),
     "964": ("Vinkovci", 45.2883, 18.8047),
     "964b": ("Ilok", 45.2222, 19.3769),
@@ -84,6 +85,18 @@ sve_mfg_grupe = {
     "621": ("Zagreb Trešnjevka", 45.7850, 15.9300),
     "622": ("Zagreb Črnomerec", 45.8200, 15.9300),
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
+}
+
+# =========================
+# GRUPIRANJE PO REGIJAMA ZA TJEDNI IZVJEŠTAJ
+# =========================
+regije_mfg = {
+    "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
+    "🏔️ GORSKA HRVATSKA": ["831", "832"],
+    "🌊 KVARNER I ISTRA": ["841", "842", "843", "845", "851", "852", "854"],
+    "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "723", "724", "725", "731", "733", "734", "735"],
+    "🏙️ ZAGREB I OKOLICA": ["624", "634", "611", "613", "614", "621", "622", "633"],
+    "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
 
 # =========================
@@ -241,10 +254,10 @@ elif MODE == "alert":
     msg += "\n\n⚠️ Preporuka: Pratite razvoj situacije!"
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - SAMO PODRUČJA S OLUJAMA)
+# MODE: WEEKLY (tjedni izvještaj - SAMO GRMLJAVINA)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj - SAMO mjesta s olujama...")
+    print("📊 Generiram tjedni izvještaj - SAMO grmljavina...")
     print(f"Broj lokacija: {len(sve_mfg_grupe)}")
     
     end_date = datetime.now() - timedelta(days=1)
@@ -257,7 +270,8 @@ elif MODE == "weekly":
         dan = start_date + timedelta(days=i)
         datumi.append(dan.strftime("%d.%m."))
     
-    rezultati_sa_olujama = {}
+    # Rječnik za rezultate (samo tamo gdje je bilo grmljavine)
+    rezultati_sa_grmljavinom = {}
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
@@ -277,7 +291,7 @@ elif MODE == "weekly":
             if "cape" not in data or not data["cape"]:
                 continue
             
-            oluje = []
+            grmljavine = []
             for dan in range(7):
                 start = dan * 24
                 end = start + 24
@@ -293,36 +307,51 @@ elif MODE == "weekly":
                 max_cape = max(cape_vrijednosti)
                 max_weather = max(weather_vrijednosti) if weather_vrijednosti else 0
                 
-                if max_cape >= 800 or max_weather in [95, 96, 99]:
-                    if max_weather in [95, 96, 99]:
-                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f} | {opis_grmljavine(max_weather)}")
-                    else:
-                        oluje.append(f"   • {datumi[dan]} ⛈️ OLUJA | CAPE {max_cape:.0f}")
+                # SAMO weathercode 95, 96, 99 (grmljavina)
+                if max_weather == 99:
+                    grmljavine.append(f"   • {datumi[dan]} ⚡⚡ JAKA GRMLJAVINA S TUČOM! | CAPE {max_cape:.0f}")
+                elif max_weather == 96:
+                    grmljavine.append(f"   • {datumi[dan]} ⚡ GRMLJAVINA S TUČOM | CAPE {max_cape:.0f}")
+                elif max_weather == 95:
+                    grmljavine.append(f"   • {datumi[dan]} 🌩️ GRMLJAVINA | CAPE {max_cape:.0f}")
             
-            if oluje:
-                rezultati_sa_olujama[mfg_id] = {
+            # Spremi samo ako ima grmljavine
+            if grmljavine:
+                rezultati_sa_grmljavinom[mfg_id] = {
                     "naziv": naziv,
-                    "oluje": oluje
+                    "grmljavine": grmljavine,
+                    "mfg_id": mfg_id
                 }
             
-            if oluje:
-                print(f"📍 {naziv}: {len(oluje)} dana s olujom")
+            if grmljavine:
+                print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} dana s grmljavinom")
             
         except Exception as e:
             print(f"ERROR - {naziv}: {e}")
     
-    if rezultati_sa_olujama:
+    # Kreiraj poruku grupiranu po regijama
+    if rezultati_sa_grmljavinom:
         msg_parts = []
-        for mfg_id, podaci in rezultati_sa_olujama.items():
-            msg_parts.append(f"🔵 {podaci['naziv']}:")
-            msg_parts.extend(podaci['oluje'])
-            msg_parts.append("")
+        for regija_naziv, mfg_lista in regije_mfg.items():
+            regija_ima = False
+            regija_dio = [regija_naziv, "─────────────────"]
+            
+            for mfg_id in mfg_lista:
+                if mfg_id in rezultati_sa_grmljavinom:
+                    regija_ima = True
+                    podaci = rezultati_sa_grmljavinom[mfg_id]
+                    regija_dio.append(f"🔵 MFG {podaci['mfg_id']} ({podaci['naziv']}):")
+                    regija_dio.extend(podaci['grmljavine'])
+                    regija_dio.append("")
+            
+            if regija_ima:
+                msg_parts.extend(regija_dio)
         
-        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
+        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
-📍 Prikazana su samo mjesta gdje je bilo oluja (CAPE ≥ 800)
+📍 Prikazana su samo mjesta gdje je bilo grmljavine (weathercode 95,96,99)
 
 """ + "\n".join(msg_parts) + """
 📌 Legenda:
@@ -331,12 +360,12 @@ elif MODE == "weekly":
 ⚡⚡ = jaka grmljavina s tučom
 """
     else:
-        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ OLUJA
+        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
-✅ U proteklih 7 dana NIJE BILO OLUJA ni na jednom mjestu
+✅ U proteklih 7 dana NIJE BILO GRMLJAVINE ni na jednom mjestu
 """
 
 else:
