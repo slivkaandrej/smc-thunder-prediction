@@ -42,7 +42,7 @@ def save_last_update_id(update_id):
         f.write(str(update_id))
 
 def main():
-    print("🤖 Bot listener pokrenut. Provjeravam nove pretplatnike...")
+    print("🤖 Bot listener pokrenut...")
     last_update_id = get_last_update_id()
     
     try:
@@ -65,19 +65,19 @@ def main():
                 
                 if text == "/start":
                     if add_subscriber(chat_id, username):
-                        confirm_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-                        confirm_msg = "✅ Pretplaćeni ste na SMC Thunder izvještaje! Dobivat ćete dnevne i tjedne izvještaje o olujama."
-                        requests.post(confirm_url, data={"chat_id": chat_id, "text": confirm_msg})
-                        print(f"✅ Novi pretplatnik: {chat_id} (@{username})")
+                        # Pošalji potvrdu korisniku
+                        requests.post(
+                            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                            data={"chat_id": chat_id, "text": "✅ Pretplaćeni ste na SMC Thunder izvještaje!"}
+                        )
+                        print(f"✅ Dodan: {chat_id} (@{username})")
                     else:
-                        already_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-                        already_msg = "ℹ️ Već ste pretplaćeni na SMC Thunder izvještaje!"
-                        requests.post(already_url, data={"chat_id": chat_id, "text": already_msg})
+                        print(f"ℹ️ Već postoji: {chat_id}")
             
             save_last_update_id(last_update_id)
-            print("✅ Provjera završena.")
+            print("✅ Gotovo!")
         else:
-            print("❌ Greška pri dohvatu poruka.")
+            print(f"❌ Greška: {data}")
             
     except Exception as e:
         print(f"❌ Greška: {e}")
