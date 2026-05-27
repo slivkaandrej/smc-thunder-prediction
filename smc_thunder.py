@@ -44,7 +44,7 @@ sve_mfg_grupe = {
     "962b": ("Beli Manastir", 45.7700, 18.6036),
     "962c": ("Bilje", 45.6069, 18.7439),
     "962d": ("Darda", 45.6281, 18.6997),
-    "962e": ("Kotlina", 45.6600, 18.7000),  # DODANO - Kotlina
+    "962e": ("Kotlina", 45.6553, 18.6947),
     "963": ("Slatina", 45.7033, 17.7025),
     "964": ("Vinkovci", 45.2883, 18.8047),
     "964b": ("Ilok", 45.2222, 19.3769),
@@ -151,6 +151,35 @@ def opis_grmljavine(weathercode):
         return "☀️ SUHO"
 
 # =========================
+# FUNKCIJE ZA SPREČAVANJE DUPLIH ALERTA
+# =========================
+ALERT_HISTORY_FILE = "alert_history.txt"
+
+def zadnji_alert_poslan(regija):
+    """Provjeri da li je alert za regiju poslan u zadnjih 6 sati"""
+    if not os.path.exists(ALERT_HISTORY_FILE):
+        return False
+    try:
+        with open(ALERT_HISTORY_FILE, "r") as f:
+            for line in f:
+                if line.startswith(regija):
+                    vrijeme = line.split("|")[1].strip()
+                    zadnji = datetime.fromisoformat(vrijeme)
+                    if datetime.now() - zadnji < timedelta(hours=6):
+                        return True
+    except:
+        pass
+    return False
+
+def spremi_alert(regija, detalji):
+    """Spremi da je alert poslan"""
+    try:
+        with open(ALERT_HISTORY_FILE, "a") as f:
+            f.write(f"{regija}|{datetime.now().isoformat()}|{detalji}\n")
+    except:
+        pass
+
+# =========================
 # MAIN
 # =========================
 print(f"\n{'='*50}")
@@ -213,10 +242,11 @@ if MODE == "report":
         msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
 
 # =========================
-# MODE: ALERT (upozorenje)
+# MODE: ALERT (upozorenje - bez dupliranja)
 # =========================
 elif MODE == "alert":
     alert_regije = []
+    novi_alerti = []
     
     for ime, (lat, lon) in regije.items():
         try:
@@ -238,17 +268,26 @@ elif MODE == "alert":
             level = rizik(max_cape, max_cloud, max_precip, max_weathercode)
 
             if level == "VRLO VISOK" or max_weathercode in [95, 96, 99]:
-                alert_regije.append(f"⚡ {ime} | CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}")
+                detalj = f"CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}"
+                
+                # Provjeri da li smo već poslali alert za ovu regiju u zadnjih 6 sati
+                if not zadnji_alert_poslan(ime):
+                    alert_regije.append(f"⚡ {ime} | {detalj}")
+                    novi_alerti.append((ime, detalj))
             
             print(f"{ime:15} | CAPE={max_cape:4.0f} WEATHERCODE={max_weathercode} => {level}")
         except Exception as e:
             print(f"ERROR - {ime}: {e}")
-
+    
+    # Spremi nove alerte u povijest
+    for ime, detalj in novi_alerti:
+        spremi_alert(ime, detalj)
+    
     if not alert_regije:
-        print("✅ Nema alarma - ne šaljem poruku")
+        print("✅ Nema novih alarma - ne šaljem poruku")
         sys.exit(0)
     
-    msg = "🚨 SMC ALERT 🚨\n\nVRLO VISOK RIZIK ILI GRMLJAVINA:\n\n"
+    msg = "🚨 SMC ALERT 🚨\n\nNOVO UPOZORENJE (prvih 6 sati):\n\n"
     msg += "\n".join(alert_regije)
     msg += f"\n\n📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}"
     msg += "\n\n⚠️ Preporuka: Pratite razvoj situacije!"
