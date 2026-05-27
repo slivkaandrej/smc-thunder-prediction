@@ -1,7 +1,6 @@
 import requests
 import json
 import os
-import time
 from datetime import datetime
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -43,45 +42,45 @@ def save_last_update_id(update_id):
         f.write(str(update_id))
 
 def main():
-    print("🤖 Bot listener pokrenut. Čekam /start komande...")
+    print("🤖 Bot listener pokrenut. Provjeravam nove pretplatnike...")
     last_update_id = get_last_update_id()
     
-    while True:
-        try:
-            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"offset": last_update_id + 1, "timeout": 30}
-            response = requests.get(url, params=params, timeout=35)
-            data = response.json()
-            
-            if data.get("ok") and data.get("result"):
-                for update in data["result"]:
-                    update_id = update.get("update_id")
-                    if update_id > last_update_id:
-                        last_update_id = update_id
-                    
-                    message = update.get("message", {})
-                    text = message.get("text", "")
-                    chat = message.get("chat", {})
-                    chat_id = chat.get("id")
-                    username = chat.get("username")
-                    
-                    if text == "/start":
-                        if add_subscriber(chat_id, username):
-                            confirm_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-                            confirm_msg = "✅ Pretplaćeni ste na SMC Thunder izvještaje! Dobivat ćete dnevne i tjedne izvještaje o olujama."
-                            requests.post(confirm_url, data={"chat_id": chat_id, "text": confirm_msg})
-                            print(f"✅ Novi pretplatnik: {chat_id} (@{username})")
-                        else:
-                            already_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-                            already_msg = "ℹ️ Već ste pretplaćeni na SMC Thunder izvještaje!"
-                            requests.post(already_url, data={"chat_id": chat_id, "text": already_msg})
-                
-                save_last_update_id(last_update_id)
-                
-        except Exception as e:
-            print(f"❌ Greška: {e}")
+    try:
+        url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+        params = {"offset": last_update_id + 1, "timeout": 10}
+        response = requests.get(url, params=params, timeout=15)
+        data = response.json()
         
-        time.sleep(1)
+        if data.get("ok") and data.get("result"):
+            for update in data["result"]:
+                update_id = update.get("update_id")
+                if update_id > last_update_id:
+                    last_update_id = update_id
+                
+                message = update.get("message", {})
+                text = message.get("text", "")
+                chat = message.get("chat", {})
+                chat_id = chat.get("id")
+                username = chat.get("username")
+                
+                if text == "/start":
+                    if add_subscriber(chat_id, username):
+                        confirm_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+                        confirm_msg = "✅ Pretplaćeni ste na SMC Thunder izvještaje! Dobivat ćete dnevne i tjedne izvještaje o olujama."
+                        requests.post(confirm_url, data={"chat_id": chat_id, "text": confirm_msg})
+                        print(f"✅ Novi pretplatnik: {chat_id} (@{username})")
+                    else:
+                        already_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+                        already_msg = "ℹ️ Već ste pretplaćeni na SMC Thunder izvještaje!"
+                        requests.post(already_url, data={"chat_id": chat_id, "text": already_msg})
+            
+            save_last_update_id(last_update_id)
+            print("✅ Provjera završena.")
+        else:
+            print("❌ Greška pri dohvatu poruka.")
+            
+    except Exception as e:
+        print(f"❌ Greška: {e}")
 
 if __name__ == "__main__":
     main()
