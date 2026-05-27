@@ -4,16 +4,67 @@ import os
 import sys
 from collections import defaultdict
 import re
+import json
 
 # =========================
 # TELEGRAM SETTINGS
 # =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # Ostaje za backup
 MODE = os.getenv("MODE")
 
 # =========================
-# REGIJE ZA BRZE IZVJEŠTAJE (report i alert)
+# UPRAVLJANJE PRETPLATNICIMA
+# =========================
+SUBSCRIBERS_FILE = "subscribers.json"
+
+def load_subscribers():
+    """Učitaj listu pretplatnika iz fajla"""
+    if not os.path.exists(SUBSCRIBERS_FILE):
+        return []
+    try:
+        with open(SUBSCRIBERS_FILE, "r") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except:
+        return []
+
+def save_subscribers(subscribers):
+    """Spremi listu pretplatnika u fajl"""
+    try:
+        with open(SUBSCRIBERS_FILE, "w") as f:
+            json.dump(subscribers, f, indent=2)
+    except:
+        pass
+
+def send_to_all_subscribers(message):
+    """Pošalji poruku svim pretplatnicima"""
+    subscribers = load_subscribers()
+    if not subscribers:
+        # Ako nema pretplatnika, pošalji na originalni CHAT_ID
+        if TOKEN and CHAT_ID:
+            send_telegram_message(CHAT_ID, message)
+        return
+    
+    for sub in subscribers:
+        chat_id = sub.get("chat_id")
+        if chat_id:
+            send_telegram_message(chat_id, message)
+
+def send_telegram_message(chat_id, message):
+    """Pomoćna funkcija za slanje poruke jednom korisniku"""
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+            data={"chat_id": chat_id, "text": message},
+            timeout=10
+        )
+        return resp.status_code == 200
+    except:
+        return False
+
+# =========================
+# REGIJE ZA BRZE IZVJEŠTAJE
 # =========================
 regije = {
     "Zagreb": (45.8150, 15.9819),
@@ -26,10 +77,9 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ (samo grmljavina)
+# MFG GRUPE
 # =========================
 sve_mfg_grupe = {
-    # ========== SJEVERNA HRVATSKA (9xx) ==========
     "942": ("Varaždin", 46.3044, 16.3378),
     "944": ("Koprivnica", 46.1625, 16.8278),
     "945": ("Bjelovar", 45.8986, 16.8489),
@@ -38,8 +88,6 @@ sve_mfg_grupe = {
     "953": ("Daruvar", 45.5906, 17.2250),
     "953b": ("Požega", 45.3314, 17.6744),
     "954": ("Slavonski Brod", 45.1603, 18.0156),
-    
-    # ========== OSIJEK I OKOLICA ==========
     "962": ("Osijek Centar / Istok", 45.5550, 18.6955),
     "961a": ("Osijek Zapad (Višnjevac)", 45.56861, 18.61389),
     "961b": ("Osijek Jug (Tenja)", 45.498, 18.747),
@@ -50,22 +98,16 @@ sve_mfg_grupe = {
     "963": ("Slatina", 45.7033, 17.7025),
     "964": ("Vinkovci", 45.2883, 18.8047),
     "964b": ("Ilok", 45.2222, 19.3769),
-    
-    # ========== KVARNER I ISTRA (8xx) ==========
     "841": ("Krk", 45.0260, 14.5780),
     "842": ("Crikvenica", 45.1667, 14.6833),
     "843": ("Opatija", 45.3333, 14.3000),
     "845": ("Rijeka", 45.3271, 14.4422),
-    "845b": ("Delnice", 45.4000, 14.8000),  # ISPRAVLJENO - Delnice su 845
+    "845b": ("Delnice", 45.4000, 14.8000),
     "851": ("Pula", 44.8667, 13.8500),
     "852": ("Rovinj", 45.0833, 13.6333),
     "854": ("Umag", 45.4333, 13.5167),
-    
-    # ========== GORSKI KOTAR I LIKA (8xx) ==========
     "831": ("Ogulin", 45.2667, 15.2167),
     "832": ("Karlovac", 45.4872, 15.5478),
-    
-    # ========== DALMACIJA (7xx) ==========
     "711": ("Dubrovnik", 42.6507, 18.0944),
     "713": ("Korčula", 42.9600, 17.1300),
     "715": ("Imotski", 43.4400, 17.2100),
@@ -78,8 +120,6 @@ sve_mfg_grupe = {
     "733": ("Knin", 44.0500, 16.2000),
     "734": ("Biograd", 43.9333, 15.4333),
     "735": ("Šibenik", 43.7350, 15.8957),
-    
-    # ========== ZAGREBAČKA REGIJA (6xx) ==========
     "624": ("Samobor", 45.8000, 15.7200),
     "634": ("Velika Gorica", 45.7100, 16.0700),
     "611": ("Zagreb Centar", 45.8150, 15.9819),
@@ -90,9 +130,6 @@ sve_mfg_grupe = {
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
 }
 
-# =========================
-# GRUPIRANJE PO REGIJAMA ZA TJEDNI IZVJEŠTAJ
-# =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
     "🏔️ GORSKA HRVATSKA": ["831", "832"],
@@ -102,12 +139,8 @@ regije_mfg = {
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
 
-# =========================
-# FUNKCIJA ZA RIZIK
-# =========================
 def rizik(cape, cloud, precip, weathercode):
     score = 0
-    
     if cape > 2000:
         score += 4
     elif cape > 1500:
@@ -116,20 +149,16 @@ def rizik(cape, cloud, precip, weathercode):
         score += 2
     elif cape > 300:
         score += 1
-    
     if cloud > 90:
         score += 2
     elif cloud > 70:
         score += 1
-    
     if precip > 80:
         score += 2
     elif precip > 50:
         score += 1
-    
     if weathercode in [95, 96, 99]:
         score += 3
-    
     if score <= 2:
         return "NIZAK"
     elif score <= 4:
@@ -153,13 +182,9 @@ def opis_grmljavine(weathercode):
     else:
         return "☀️ SUHO"
 
-# =========================
-# FUNKCIJE ZA SPREČAVANJE DUPLIH ALERTA
-# =========================
 ALERT_HISTORY_FILE = "alert_history.txt"
 
 def zadnji_alert_poslan(alert_id):
-    """Provjeri da li je alert za ID poslan u zadnjih 6 sati"""
     if not os.path.exists(ALERT_HISTORY_FILE):
         return False
     try:
@@ -175,16 +200,12 @@ def zadnji_alert_poslan(alert_id):
     return False
 
 def spremi_alert(alert_id, detalji):
-    """Spremi da je alert poslan"""
     try:
         with open(ALERT_HISTORY_FILE, "a") as f:
             f.write(f"{alert_id}|{datetime.now().isoformat()}|{detalji}\n")
     except:
         pass
 
-# =========================
-# MAIN
-# =========================
 print(f"\n{'='*50}")
 print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Mod: {MODE}")
@@ -192,7 +213,7 @@ print(f"Broj MFG lokacija: {len(sve_mfg_grupe)}")
 print(f"{'='*50}\n")
 
 # =========================
-# MODE: REPORT (dnevni izvještaj)
+# MODE: REPORT
 # =========================
 if MODE == "report":
     results = []
@@ -244,8 +265,10 @@ if MODE == "report":
     if grmljavina_upozorenja:
         msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
 
+    send_to_all_subscribers(msg)
+
 # =========================
-# MODE: ALERT (upozorenje - na MFG grupama, bez dupliranja)
+# MODE: ALERT
 # =========================
 elif MODE == "alert":
     print("🔍 Provjera alarma na MFG grupama...")
@@ -302,13 +325,11 @@ elif MODE == "alert":
     
     for alert in alert_mfg:
         mfg_broj = re.search(r'MFG (\d+)', alert).group(1)
-        
         regija_pripada = "🌍 OSTALO"
         for reg_naziv, mfg_lista in regije_mfg.items():
             if mfg_broj in mfg_lista:
                 regija_pripada = reg_naziv
                 break
-        
         alerti_po_regijama[regija_pripada].append(alert)
     
     msg_parts = []
@@ -327,9 +348,10 @@ elif MODE == "alert":
 ⚠️ Preporuka: Pratite razvoj situacije!
 🔔 Sljedeća provjera za 1 sat
 """
+    send_to_all_subscribers(msg)
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - SAMO GRMLJAVINA)
+# MODE: WEEKLY
 # =========================
 elif MODE == "weekly":
     print("📊 Generiram tjedni izvještaj - SAMO grmljavina...")
@@ -422,7 +444,7 @@ elif MODE == "weekly":
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
-📍 Prikazana su samo mjesta gdje je bilo grmljavine (weathercode 95,96,99)
+📍 Prikazana su samo mjesta gdje je bilo grmljavine
 
 """ + "\n".join(msg_parts) + """
 📌 Legenda:
@@ -438,33 +460,10 @@ elif MODE == "weekly":
 
 ✅ U proteklih 7 dana NIJE BILO GRMLJAVINE ni na jednom mjestu
 """
+    send_to_all_subscribers(msg)
 
 else:
     print(f"❌ Nepoznat MODE: {MODE}")
-    sys.exit(1)
-
-# =========================
-# SEND TELEGRAM
-# =========================
-if not TOKEN or not CHAT_ID:
-    print("❌ Missing environment variables")
-    sys.exit(1)
-
-print("\n📤 Šaljem Telegram poruku...")
-
-try:
-    resp = requests.post(
-        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": msg},
-        timeout=10
-    )
-    print(f"📡 Status: {resp.status_code}")
-    if resp.status_code == 200:
-        print("✅ Poruka uspješno poslana!")
-    else:
-        print(f"❌ Greška: {resp.text}")
-except Exception as e:
-    print(f"❌ Greška pri slanju: {e}")
     sys.exit(1)
 
 print("\n✅ SMC Thunder završio\n")
