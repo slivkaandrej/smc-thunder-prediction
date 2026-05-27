@@ -4,64 +4,18 @@ import os
 import sys
 from collections import defaultdict
 import re
-import json
 
 # =========================
 # TELEGRAM SETTINGS
 # =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # Ostaje za backup
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE")
 
 # =========================
-# UPRAVLJANJE PRETPLATNICIMA
+# TELEGRAM GRUPA (zamijeni sa svojim CHAT_ID)
 # =========================
-SUBSCRIBERS_FILE = "subscribers.json"
-
-def load_subscribers():
-    """Učitaj listu pretplatnika iz fajla"""
-    if not os.path.exists(SUBSCRIBERS_FILE):
-        return []
-    try:
-        with open(SUBSCRIBERS_FILE, "r") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except:
-        return []
-
-def save_subscribers(subscribers):
-    """Spremi listu pretplatnika u fajl"""
-    try:
-        with open(SUBSCRIBERS_FILE, "w") as f:
-            json.dump(subscribers, f, indent=2)
-    except:
-        pass
-
-def send_to_all_subscribers(message):
-    """Pošalji poruku svim pretplatnicima"""
-    subscribers = load_subscribers()
-    if not subscribers:
-        # Ako nema pretplatnika, pošalji na originalni CHAT_ID
-        if TOKEN and CHAT_ID:
-            send_telegram_message(CHAT_ID, message)
-        return
-    
-    for sub in subscribers:
-        chat_id = sub.get("chat_id")
-        if chat_id:
-            send_telegram_message(chat_id, message)
-
-def send_telegram_message(chat_id, message):
-    """Pomoćna funkcija za slanje poruke jednom korisniku"""
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            data={"chat_id": chat_id, "text": message},
-            timeout=10
-        )
-        return resp.status_code == 200
-    except:
-        return False
+GROUP_CHAT_ID = -5261274719  # Tvoj CHAT_ID grupe!
 
 # =========================
 # REGIJE ZA BRZE IZVJEŠTAJE
@@ -138,6 +92,24 @@ regije_mfg = {
     "🏙️ ZAGREB I OKOLICA": ["624", "634", "611", "613", "614", "621", "622", "633"],
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
+
+def posalji_u_grupu(poruka):
+    """Pošalji poruku u Telegram grupu"""
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+            data={"chat_id": GROUP_CHAT_ID, "text": poruka},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            print("✅ Poruka poslana u grupu!")
+            return True
+        else:
+            print(f"❌ Greška: {resp.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Greška pri slanju: {e}")
+        return False
 
 def rizik(cape, cloud, precip, weathercode):
     score = 0
@@ -253,7 +225,7 @@ if MODE == "report":
     hour = datetime.now().hour
     naslov = "🌅 JUTARNJI IZVJEŠTAJ" if hour < 12 else "🌤️ POPODNEVNI IZVJEŠTAJ"
     
-    msg = f"""🌩️ SMC THUNDER
+    poruka = f"""🌩️ SMC THUNDER
 
 {naslov}
 📅 {datetime.now().strftime("%d.%m.%Y. %H:%M")}
@@ -263,9 +235,9 @@ if MODE == "report":
 """ + "\n".join(results)
 
     if grmljavina_upozorenja:
-        msg += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
+        poruka += "\n\n📍 GRMLJAVINSKA UPOZORENJA:\n" + "\n".join(grmljavina_upozorenja)
 
-    send_to_all_subscribers(msg)
+    posalji_u_grupu(poruka)
 
 # =========================
 # MODE: ALERT
@@ -332,23 +304,23 @@ elif MODE == "alert":
                 break
         alerti_po_regijama[regija_pripada].append(alert)
     
-    msg_parts = []
+    poruka_dijelovi = []
     for regija_naziv, alerti in alerti_po_regijama.items():
-        msg_parts.append(f"\n📌 {regija_naziv}")
-        msg_parts.extend(alerti)
+        poruka_dijelovi.append(f"\n📌 {regija_naziv}")
+        poruka_dijelovi.extend(alerti)
     
-    msg = f"""🚨 SMC ALERT 🚨
+    poruka = f"""🚨 SMC ALERT 🚨
 
 ⚠️ VRLO VISOK RIZIK ILI GRMLJAVINA!
 
 📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}
 📍 Pogođene MFG grupe (prvi put u 6 sati):
-""" + "\n".join(msg_parts) + """
+""" + "\n".join(poruka_dijelovi) + """
 
 ⚠️ Preporuka: Pratite razvoj situacije!
 🔔 Sljedeća provjera za 1 sat
 """
-    send_to_all_subscribers(msg)
+    posalji_u_grupu(poruka)
 
 # =========================
 # MODE: WEEKLY
@@ -424,7 +396,7 @@ elif MODE == "weekly":
             print(f"ERROR - {naziv}: {e}")
     
     if rezultati_sa_grmljavinom:
-        msg_parts = []
+        poruka_dijelovi = []
         for regija_naziv, mfg_lista in regije_mfg.items():
             regija_ima = False
             regija_dio = [regija_naziv, "─────────────────"]
@@ -438,29 +410,29 @@ elif MODE == "weekly":
                     regija_dio.append("")
             
             if regija_ima:
-                msg_parts.extend(regija_dio)
+                poruka_dijelovi.extend(regija_dio)
         
-        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
+        poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 📍 Prikazana su samo mjesta gdje je bilo grmljavine
 
-""" + "\n".join(msg_parts) + """
+""" + "\n".join(poruka_dijelovi) + """
 📌 Legenda:
 🌩️ = grmljavina
 ⚡ = grmljavina s tučom
 ⚡⚡ = jaka grmljavina s tučom
 """
     else:
-        msg = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
+        poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
 
 📅 {datetime.now().strftime("%d.%m.%Y")}
 📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
 ✅ U proteklih 7 dana NIJE BILO GRMLJAVINE ni na jednom mjestu
 """
-    send_to_all_subscribers(msg)
+    posalji_u_grupu(poruka)
 
 else:
     print(f"❌ Nepoznat MODE: {MODE}")
