@@ -9,16 +9,15 @@ import re
 # TELEGRAM SETTINGS
 # =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 MODE = os.getenv("MODE")
 
 # =========================
-# TELEGRAM SUPERGRUPA (ispravljen CHAT_ID)
+# TELEGRAM SUPERGRUPA (tvrdi kodirano)
 # =========================
-GROUP_CHAT_ID = -1003803468625  # NOVI CHAT_ID supergrupe!
+GROUP_CHAT_ID = -1003803468625
 
 # =========================
-# REGIJE ZA BRZE IZVJEŠTAJE
+# REGIJE ZA BRZE IZVJEŠTAJE (report i alert)
 # =========================
 regije = {
     "Zagreb": (45.8150, 15.9819),
@@ -31,7 +30,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE
+# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
 # =========================
 sve_mfg_grupe = {
     "942": ("Varaždin", 46.3044, 16.3378),
@@ -84,6 +83,9 @@ sve_mfg_grupe = {
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
 }
 
+# =========================
+# GRUPIRANJE PO REGIJAMA
+# =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
     "🏔️ GORSKA HRVATSKA": ["831", "832"],
@@ -93,8 +95,10 @@ regije_mfg = {
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
 
+# =========================
+# POMOĆNE FUNKCIJE
+# =========================
 def posalji_u_grupu(poruka):
-    """Pošalji poruku u Telegram supergrupu"""
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
@@ -178,14 +182,16 @@ def spremi_alert(alert_id, detalji):
     except:
         pass
 
+# =========================
+# MAIN
+# =========================
 print(f"\n{'='*50}")
 print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Mod: {MODE}")
-print(f"Broj MFG lokacija: {len(sve_mfg_grupe)}")
 print(f"{'='*50}\n")
 
 # =========================
-# MODE: REPORT
+# MODE: REPORT (dnevni izvještaj - 7:10 i 14:00)
 # =========================
 if MODE == "report":
     results = []
@@ -240,7 +246,97 @@ if MODE == "report":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: ALERT
+# MODE: YESTERDAY (grmljavina jučer - 7:11)
+# =========================
+elif MODE == "yesterday":
+    print("📊 Generiram izvještaj o grmljavini jučer...")
+    
+    juce = datetime.now() - timedelta(days=1)
+    juce_str = juce.strftime("%d.%m.%Y")
+    
+    rezultati = {}
+    ukupno_dogadjaja = 0
+    
+    for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
+        try:
+            url = "https://api.open-meteo.com/v1/forecast"
+            params = {
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": "cape,weathercode",
+                "past_days": 1,
+                "forecast_days": 0,
+                "timezone": "Europe/Zagreb"
+            }
+            
+            r = requests.get(url, params=params, timeout=30)
+            data = r.json()["hourly"]
+            
+            if "cape" not in data or not data["cape"]:
+                continue
+            
+            grmljavine = []
+            for hour in range(24):
+                if hour >= len(data["cape"]):
+                    break
+                
+                cape = data["cape"][hour]
+                weather = data["weathercode"][hour]
+                
+                if cape is None:
+                    continue
+                    
+                if weather == 99:
+                    grmljavine.append(f"   • {hour:02d}:00 ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {cape:.0f})")
+                    ukupno_dogadjaja += 1
+                elif weather == 96:
+                    grmljavine.append(f"   • {hour:02d}:00 ⚡ GRMLJAVINA S TUČOM (CAPE {cape:.0f})")
+                    ukupno_dogadjaja += 1
+                elif weather == 95:
+                    grmljavine.append(f"   • {hour:02d}:00 🌩️ GRMLJAVINA (CAPE {cape:.0f})")
+                    ukupno_dogadjaja += 1
+            
+            if grmljavine:
+                rezultati[mfg_id] = {
+                    "naziv": naziv,
+                    "grmljavine": grmljavine,
+                    "mfg_id": mfg_id
+                }
+            
+            if grmljavine:
+                print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} grmljavinskih događaja")
+            
+        except Exception as e:
+            print(f"ERROR - {naziv}: {e}")
+    
+    if rezultati:
+        poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})", ""]
+        
+        for regija_naziv, mfg_lista in regije_mfg.items():
+            regija_ima = False
+            regija_dio = [regija_naziv, "─────────────────"]
+            
+            for mfg_id in mfg_lista:
+                if mfg_id in rezultati:
+                    regija_ima = True
+                    podaci = rezultati[mfg_id]
+                    regija_dio.append(f"🔵 MFG {podaci['mfg_id']} ({podaci['naziv']}):")
+                    regija_dio.extend(podaci['grmljavine'])
+                    regija_dio.append("")
+            
+            if regija_ima:
+                poruka_dijelovi.extend(regija_dio)
+        
+        poruka_dijelovi.append(f"✅ Ukupno: {len(rezultati)} MFG grupa, {ukupno_dogadjaja} grmljavinskih događaja")
+        
+        poruka = "\n".join(poruka_dijelovi)
+    else:
+        poruka = f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})\n\n✅ Jučer NIJE BILO GRMLJAVINE ni na jednom mjestu"
+    
+    posalji_u_grupu(poruka)
+
+# =========================
+# MODE: ALERT (upozorenje - svaki sat)
 # =========================
 elif MODE == "alert":
     print("🔍 Provjera alarma na MFG grupama...")
@@ -323,7 +419,7 @@ elif MODE == "alert":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: WEEKLY
+# MODE: WEEKLY (tjedni izvještaj - NEDJELJOM u 20:00, 7 dana unazad)
 # =========================
 elif MODE == "weekly":
     print("📊 Generiram tjedni izvještaj - SAMO grmljavina...")
@@ -340,6 +436,7 @@ elif MODE == "weekly":
         datumi.append(dan.strftime("%d.%m."))
     
     rezultati_sa_grmljavinom = {}
+    ukupno_grupa = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
@@ -388,6 +485,7 @@ elif MODE == "weekly":
                     "grmljavine": grmljavine,
                     "mfg_id": mfg_id
                 }
+                ukupno_grupa += 1
             
             if grmljavine:
                 print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} dana s grmljavinom")
@@ -396,7 +494,11 @@ elif MODE == "weekly":
             print(f"ERROR - {naziv}: {e}")
     
     if rezultati_sa_grmljavinom:
-        poruka_dijelovi = []
+        poruka_dijelovi = [f"📊 SMC THUNDER - TJEDNI IZVJEŠTAJ", ""]
+        poruka_dijelovi.append(f"📅 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
+        poruka_dijelovi.append(f"📍 Prikazana su samo mjesta gdje je bilo grmljavine")
+        poruka_dijelovi.append("")
+        
         for regija_naziv, mfg_lista in regije_mfg.items():
             regija_ima = False
             regija_dio = [regija_naziv, "─────────────────"]
@@ -412,23 +514,13 @@ elif MODE == "weekly":
             if regija_ima:
                 poruka_dijelovi.extend(regija_dio)
         
-        poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
-
-📅 {datetime.now().strftime("%d.%m.%Y")}
-📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
-📍 Prikazana su samo mjesta gdje je bilo grmljavine
-
-""" + "\n".join(poruka_dijelovi) + """
-📌 Legenda:
-🌩️ = grmljavina
-⚡ = grmljavina s tučom
-⚡⚡ = jaka grmljavina s tučom
-"""
+        poruka_dijelovi.append(f"✅ Ukupno: {ukupno_grupa} MFG grupa s grmljavinom")
+        
+        poruka = "\n".join(poruka_dijelovi)
     else:
-        poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ (SAMO GRMLJAVINA)
+        poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ
 
-📅 {datetime.now().strftime("%d.%m.%Y")}
-📆 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
+📅 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
 
 ✅ U proteklih 7 dana NIJE BILO GRMLJAVINE ni na jednom mjestu
 """
