@@ -30,7 +30,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE ZA TJEDNI IZVJEŠTAJ
+# MFG GRUPE
 # =========================
 sve_mfg_grupe = {
     "942": ("Varaždin", 46.3044, 16.3378),
@@ -246,16 +246,16 @@ if MODE == "report":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: YESTERDAY (grmljavina jučer - 7:11)
+# MODE: YESTERDAY (grmljavina jučer - samo najjača)
 # =========================
 elif MODE == "yesterday":
-    print("📊 Generiram izvještaj o grmljavini jučer...")
+    print("📊 Generiram izvještaj o grmljavini jučer (samo najjača)...")
     
     juce = datetime.now() - timedelta(days=1)
     juce_str = juce.strftime("%d.%m.%Y")
     
     rezultati = {}
-    ukupno_dogadjaja = 0
+    ukupno_grupa = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
@@ -275,7 +275,10 @@ elif MODE == "yesterday":
             if "cape" not in data or not data["cape"]:
                 continue
             
-            grmljavine = []
+            # Pronađi najjaču grmljavinu i najveći CAPE
+            najjaci_code = 0
+            najveci_cape = 0
+            
             for hour in range(24):
                 if hour >= len(data["cape"]):
                     break
@@ -285,26 +288,29 @@ elif MODE == "yesterday":
                 
                 if cape is None:
                     continue
-                    
-                if weather == 99:
-                    grmljavine.append(f"   • {hour:02d}:00 ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {cape:.0f})")
-                    ukupno_dogadjaja += 1
-                elif weather == 96:
-                    grmljavine.append(f"   • {hour:02d}:00 ⚡ GRMLJAVINA S TUČOM (CAPE {cape:.0f})")
-                    ukupno_dogadjaja += 1
-                elif weather == 95:
-                    grmljavine.append(f"   • {hour:02d}:00 🌩️ GRMLJAVINA (CAPE {cape:.0f})")
-                    ukupno_dogadjaja += 1
+                
+                if weather in [95, 96, 99]:
+                    if weather > najjaci_code:
+                        najjaci_code = weather
+                        najveci_cape = cape
+                    elif weather == najjaci_code and cape > najveci_cape:
+                        najveci_cape = cape
             
-            if grmljavine:
+            if najjaci_code > 0:
+                if najjaci_code == 99:
+                    grmljavina = f"   • ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {najveci_cape:.0f})"
+                elif najjaci_code == 96:
+                    grmljavina = f"   • ⚡ GRMLJAVINA S TUČOM (CAPE {najveci_cape:.0f})"
+                else:
+                    grmljavina = f"   • 🌩️ GRMLJAVINA (CAPE {najveci_cape:.0f})"
+                
                 rezultati[mfg_id] = {
                     "naziv": naziv,
-                    "grmljavine": grmljavine,
+                    "grmljavina": grmljavina,
                     "mfg_id": mfg_id
                 }
-            
-            if grmljavine:
-                print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} grmljavinskih događaja")
+                ukupno_grupa += 1
+                print(f"📍 MFG {mfg_id} ({naziv}): {grmljavina}")
             
         except Exception as e:
             print(f"ERROR - {naziv}: {e}")
@@ -321,13 +327,13 @@ elif MODE == "yesterday":
                     regija_ima = True
                     podaci = rezultati[mfg_id]
                     regija_dio.append(f"🔵 MFG {podaci['mfg_id']} ({podaci['naziv']}):")
-                    regija_dio.extend(podaci['grmljavine'])
+                    regija_dio.append(podaci['grmljavina'])
                     regija_dio.append("")
             
             if regija_ima:
                 poruka_dijelovi.extend(regija_dio)
         
-        poruka_dijelovi.append(f"✅ Ukupno: {len(rezultati)} MFG grupa, {ukupno_dogadjaja} grmljavinskih događaja")
+        poruka_dijelovi.append(f"✅ Ukupno: {ukupno_grupa} MFG grupa s grmljavinom")
         
         poruka = "\n".join(poruka_dijelovi)
     else:
