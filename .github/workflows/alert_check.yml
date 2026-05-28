@@ -17,6 +17,5 @@ jobs:
       - name: Run alert check
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MODE: "alert"
         run: python smc_thunder.py
