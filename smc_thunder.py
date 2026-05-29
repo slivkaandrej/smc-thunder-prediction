@@ -30,7 +30,7 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE (dodani Solin, Žrnovnica, Klis)
+# MFG GRUPE
 # =========================
 sve_mfg_grupe = {
     "942": ("Varaždin", 46.3044, 16.3378),
@@ -81,14 +81,13 @@ sve_mfg_grupe = {
     "621": ("Zagreb Trešnjevka", 45.7850, 15.9300),
     "622": ("Zagreb Črnomerec", 45.8200, 15.9300),
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
-    # ========== DODANI: SOLIN, ŽRNOVNICA, KLIS ==========
     "722a": ("Solin", 43.5333, 16.5000),
     "725b": ("Žrnovnica", 43.5200, 16.5500),
     "724b": ("Klis", 43.5500, 16.5167),
 }
 
 # =========================
-# GRUPIRANJE PO REGIJAMA (ažurirano s dodanim mjestima)
+# GRUPIRANJE PO REGIJAMA
 # =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
@@ -251,14 +250,13 @@ if MODE == "report":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: YESTERDAY (grmljavina jučer - STVARNI PODACI)
-# KORISTI HISTORICAL API (archive-api)
+# MODE: YESTERDAY (grmljavina jučer - FORECAST API)
 # =========================
 elif MODE == "yesterday":
-    print("📊 Generiram izvještaj o grmljavini jučer (STVARNI PODACI - Historical API)...")
-    print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
+    print("📊 Generiram izvještaj o grmljavini jučer (Forecast API - prognoza)...")
+    print("⚠️ Napomena: Ovo su prognozirani podaci, ne stvarna mjerenja.")
     
-    juce = datetime.now() - timedelta(days=2)  # Idemo 2 dana unazad da budemo sigurni da podaci postoje
+    juce = datetime.now() - timedelta(days=1)
     juce_str = juce.strftime("%d.%m.%Y")
     
     rezultati = {}
@@ -266,14 +264,14 @@ elif MODE == "yesterday":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            # Historical API za stvarne podatke
-            url = "https://archive-api.open-meteo.com/v1/archive"
+            # Forecast API s past_days=2 (za jučer)
+            url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "start_date": juce.strftime("%Y-%m-%d"),
-                "end_date": juce.strftime("%Y-%m-%d"),
                 "hourly": "weathercode,cape",
+                "past_days": 2,
+                "forecast_days": 0,
                 "timezone": "Europe/Zagreb"
             }
             
@@ -287,11 +285,14 @@ elif MODE == "yesterday":
             if "weathercode" not in hourly or "cape" not in hourly:
                 continue
             
-            # Pronađi najjaču grmljavinu u danu
+            # Jučer je drugih 24 sata (indexi 24-47)
             najjaci_code = 0
             najveci_cape = 0
             
-            for hour in range(len(hourly["weathercode"])):
+            start_idx = 24
+            end_idx = min(48, len(hourly["weathercode"]))
+            
+            for hour in range(start_idx, end_idx):
                 weather = hourly["weathercode"][hour]
                 cape = hourly["cape"][hour]
                 
@@ -320,8 +321,8 @@ elif MODE == "yesterday":
     
     # Generiranje poruke
     if rezultati:
-        poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA {juce_str} (STVARNI PODACI)", ""]
-        poruka_dijelovi.append("⚠️ Napomena: Historical API kasni ~2-5 dana")
+        poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})", ""]
+        poruka_dijelovi.append("⚠️ Napomena: Prognozirani podaci (Forecast API)")
         poruka_dijelovi.append("")
         
         for regija_naziv, mfg_lista in regije_mfg.items():
@@ -350,7 +351,7 @@ elif MODE == "yesterday":
         poruka_dijelovi.append(f"✅ Ukupno: {ukupno_grupa} MFG grupa s grmljavinom")
         poruka = "\n".join(poruka_dijelovi)
     else:
-        poruka = f"📊 SMC THUNDER - GRMLJAVINA {juce_str} (STVARNI PODACI)\n\n✅ Nema podataka o grmljavini (podaci možda još nisu dostupni ili nije bilo grmljavine)"
+        poruka = f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})\n\n✅ Jučer NIJE BILO GRMLJAVINE ni na jednom mjestu (prema prognozi)"
     
     posalji_u_grupu(poruka)
 
@@ -439,11 +440,10 @@ elif MODE == "alert":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - STVARNI PODACI)
-# KORISTI HISTORICAL API (archive-api)
+# MODE: WEEKLY (tjedni izvještaj - HISTORICAL API)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj - SAMO grmljavina (STVARNI PODACI - Historical API)...")
+    print("📊 Generiram tjedni izvještaj - SAMO grmljavina (Historical API - stvarni podaci)...")
     print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
     
     # Gledamo period od prije 9-2 dana (da budemo sigurni da podaci postoje)
