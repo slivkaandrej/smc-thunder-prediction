@@ -1,0 +1,16 @@
+name: SMC Alert History
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 5 * * *"   # 5:15 UTC = 7:15 po vašem
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version:
