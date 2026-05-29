@@ -255,6 +255,7 @@ if MODE == "report":
 elif MODE == "yesterday":
     print("📊 Generiram izvještaj o grmljavini jučer (Forecast API - prognoza)...")
     print("⚠️ Napomena: Ovo su prognozirani podaci, ne stvarna mjerenja.")
+    print("⏱️ Očekivano trajanje: 5-10 minuta (analizira se 51 lokacija)...")
     
     juce = datetime.now() - timedelta(days=1)
     juce_str = juce.strftime("%d.%m.%Y")
@@ -266,7 +267,7 @@ elif MODE == "yesterday":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         trenutni_broj += 1
-        print(f"🔄 Provjera {trenutni_broj}/{ukupno_grupa_ukupno}: MFG {mfg_id} ({naziv})...")
+        print(f"\n🔄 Provjera {trenutni_broj}/{ukupno_grupa_ukupno}: MFG {mfg_id} ({naziv})...")
         
         try:
             url = "https://api.open-meteo.com/v1/forecast"
@@ -279,25 +280,28 @@ elif MODE == "yesterday":
                 "timezone": "Europe/Zagreb"
             }
             
-            max_retries = 2
+            max_retries = 3
             data = None
             
             for attempt in range(max_retries):
                 try:
-                    r = requests.get(url, params=params, timeout=60)
+                    r = requests.get(url, params=params, timeout=90)
                     data = r.json()
+                    print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
                     break
                 except requests.exceptions.Timeout:
                     if attempt == max_retries - 1:
                         raise
-                    print(f"   ⏱️ Timeout za {naziv}, ponovni pokušaj {attempt + 2}...")
-                    time.sleep(2)
+                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                    time.sleep(5)
             
             if data is None or "hourly" not in data:
+                print(f"   ❌ Nema podataka")
                 continue
             
             hourly = data["hourly"]
             if "weathercode" not in hourly or "cape" not in hourly:
+                print(f"   ❌ Nema weathercode ili cape podataka")
                 continue
             
             najjaci_code = 0
@@ -307,8 +311,10 @@ elif MODE == "yesterday":
             end_idx = min(48, len(hourly["weathercode"]))
             
             for hour in range(start_idx, end_idx):
+                if hour >= len(hourly["weathercode"]):
+                    break
                 weather = hourly["weathercode"][hour]
-                cape = hourly["cape"][hour]
+                cape = hourly["cape"][hour] if hour < len(hourly["cape"]) else None
                 
                 if cape is None:
                     continue
@@ -330,15 +336,15 @@ elif MODE == "yesterday":
                 ukupno_grupa += 1
                 
                 if najjaci_code == 99:
-                    print(f"   ✅ JAKA GRMLJAVINA!")
+                    print(f"   ✅ JAKA GRMLJAVINA S TUČOM! (CAPE {najveci_cape:.0f})")
                 elif najjaci_code == 96:
-                    print(f"   ✅ GRMLJAVINA S TUČOM!")
+                    print(f"   ✅ GRMLJAVINA S TUČOM! (CAPE {najveci_cape:.0f})")
                 else:
-                    print(f"   ✅ GRMLJAVINA!")
+                    print(f"   ✅ GRMLJAVINA! (CAPE {najveci_cape:.0f})")
             else:
                 print(f"   ❌ Nema grmljavine")
             
-            time.sleep(0.2)
+            time.sleep(0.5)
             
         except Exception as e:
             print(f"   ❌ GREŠKA: {e}")
