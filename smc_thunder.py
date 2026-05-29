@@ -1,4 +1,4 @@
-import requests
+import requestsimport requests
 from datetime import datetime, timedelta
 import os
 import sys
@@ -30,10 +30,9 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE (dodani Klis, Solin, Žrnovnica)
+# MFG GRUPE
 # =========================
 sve_mfg_grupe = {
-    # ========== SJEVERNA HRVATSKA (9xx) ==========
     "942": ("Varaždin", 46.3044, 16.3378),
     "944": ("Koprivnica", 46.1625, 16.8278),
     "945": ("Bjelovar", 45.8986, 16.8489),
@@ -42,8 +41,6 @@ sve_mfg_grupe = {
     "953": ("Daruvar", 45.5906, 17.2250),
     "953b": ("Požega", 45.3314, 17.6744),
     "954": ("Slavonski Brod", 45.1603, 18.0156),
-    
-    # ========== OSIJEK I OKOLICA ==========
     "962": ("Osijek Centar / Istok", 45.5550, 18.6955),
     "961a": ("Osijek Zapad (Višnjevac)", 45.56861, 18.61389),
     "961b": ("Osijek Jug (Tenja)", 45.498, 18.747),
@@ -54,8 +51,6 @@ sve_mfg_grupe = {
     "963": ("Slatina", 45.7033, 17.7025),
     "964": ("Vinkovci", 45.2883, 18.8047),
     "964b": ("Ilok", 45.2222, 19.3769),
-    
-    # ========== KVARNER I ISTRA (8xx) ==========
     "841": ("Krk", 45.0260, 14.5780),
     "842": ("Crikvenica", 45.1667, 14.6833),
     "843": ("Opatija", 45.3333, 14.3000),
@@ -64,28 +59,20 @@ sve_mfg_grupe = {
     "851": ("Pula", 44.8667, 13.8500),
     "852": ("Rovinj", 45.0833, 13.6333),
     "854": ("Umag", 45.4333, 13.5167),
-    
-    # ========== GORSKI KOTAR I LIKA (8xx) ==========
     "831": ("Ogulin", 45.2667, 15.2167),
     "832": ("Karlovac", 45.4872, 15.5478),
-    
-    # ========== DALMACIJA (7xx) ==========
     "711": ("Dubrovnik", 42.6507, 18.0944),
     "713": ("Korčula", 42.9600, 17.1300),
     "715": ("Imotski", 43.4400, 17.2100),
     "721": ("Split", 43.5081, 16.4402),
-    "722": ("Solin", 43.5333, 16.5000),  # DODANO - Solin
+    "722": ("Hvar", 43.1725, 16.4428),
     "723": ("Trogir", 43.5167, 16.2500),
-    "724": ("Klis", 43.5500, 16.5167),   # DODANO - Klis
-    "724b": ("Sinj", 43.7000, 16.6333),
-    "725": ("Žrnovnica", 43.5200, 16.5500),  # DODANO - Žrnovnica
-    "725b": ("Vis", 43.0600, 16.1800),
+    "724": ("Sinj", 43.7000, 16.6333),
+    "725": ("Vis", 43.0600, 16.1800),
     "731": ("Zadar", 44.1194, 15.2314),
     "733": ("Knin", 44.0500, 16.2000),
     "734": ("Biograd", 43.9333, 15.4333),
     "735": ("Šibenik", 43.7350, 15.8957),
-    
-    # ========== ZAGREBAČKA REGIJA (6xx) ==========
     "624": ("Samobor", 45.8000, 15.7200),
     "634": ("Velika Gorica", 45.7100, 16.0700),
     "611": ("Zagreb Centar", 45.8150, 15.9819),
@@ -97,13 +84,13 @@ sve_mfg_grupe = {
 }
 
 # =========================
-# GRUPIRANJE PO REGIJAMA (ažurirano)
+# GRUPIRANJE PO REGIJAMA
 # =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
     "🏔️ GORSKA HRVATSKA": ["831", "832"],
     "🌊 KVARNER I ISTRA": ["841", "842", "843", "845", "845b", "851", "852", "854"],
-    "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "723", "724", "724b", "725", "725b", "731", "733", "734", "735"],
+    "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "723", "724", "725", "731", "733", "734", "735"],
     "🏙️ ZAGREB I OKOLICA": ["624", "634", "611", "613", "614", "621", "622", "633"],
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
@@ -201,7 +188,6 @@ def spremi_alert(alert_id, detalji):
 print(f"\n{'='*50}")
 print(f"Pokrećem SMC Thunder - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Mod: {MODE}")
-print(f"Broj MFG lokacija: {len(sve_mfg_grupe)}")
 print(f"{'='*50}\n")
 
 # =========================
@@ -260,16 +246,15 @@ if MODE == "report":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: YESTERDAY (grmljavina jučer - samo najjača)
+# MODE: YESTERDAY (grmljavina jučer - sa Open-Meteo)
 # =========================
 elif MODE == "yesterday":
-    print("📊 Generiram izvještaj o grmljavini jučer (samo najjača)...")
+    print("📊 Generiram izvještaj o grmljavini jučer (sa Open-Meteo)...")
     
     juce = datetime.now() - timedelta(days=1)
     juce_str = juce.strftime("%d.%m.%Y")
     
     rezultati = {}
-    ukupno_grupa = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
@@ -289,6 +274,7 @@ elif MODE == "yesterday":
             if "cape" not in data or not data["cape"]:
                 continue
             
+            # Pronađi najjaču grmljavinu (najveći code)
             najjaci_code = 0
             najveci_cape = 0
             
@@ -310,26 +296,20 @@ elif MODE == "yesterday":
                         najveci_cape = cape
             
             if najjaci_code > 0:
-                if najjaci_code == 99:
-                    grmljavina = f"   • ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {najveci_cape:.0f})"
-                elif najjaci_code == 96:
-                    grmljavina = f"   • ⚡ GRMLJAVINA S TUČOM (CAPE {najveci_cape:.0f})"
-                else:
-                    grmljavina = f"   • 🌩️ GRMLJAVINA (CAPE {najveci_cape:.0f})"
-                
                 rezultati[mfg_id] = {
                     "naziv": naziv,
-                    "grmljavina": grmljavina,
+                    "najjaci_code": najjaci_code,
+                    "najveci_cape": najveci_cape,
                     "mfg_id": mfg_id
                 }
-                ukupno_grupa += 1
-                print(f"📍 MFG {mfg_id} ({naziv}): {grmljavina}")
+                print(f"📍 MFG {mfg_id} ({naziv}): code={najjaci_code}, cape={najveci_cape}")
             
         except Exception as e:
             print(f"ERROR - {naziv}: {e}")
     
     if rezultati:
         poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})", ""]
+        ukupno_grupa = 0
         
         for regija_naziv, mfg_lista in regije_mfg.items():
             regija_ima = False
@@ -339,15 +319,23 @@ elif MODE == "yesterday":
                 if mfg_id in rezultati:
                     regija_ima = True
                     podaci = rezultati[mfg_id]
+                    ukupno_grupa += 1
+                    
+                    if podaci["najjaci_code"] == 99:
+                        grmljavina_tekst = f"   • ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {podaci['najveci_cape']:.0f})"
+                    elif podaci["najjaci_code"] == 96:
+                        grmljavina_tekst = f"   • ⚡ GRMLJAVINA S TUČOM (CAPE {podaci['najveci_cape']:.0f})"
+                    else:
+                        grmljavina_tekst = f"   • 🌩️ GRMLJAVINA (CAPE {podaci['najveci_cape']:.0f})"
+                    
                     regija_dio.append(f"🔵 MFG {podaci['mfg_id']} ({podaci['naziv']}):")
-                    regija_dio.append(podaci['grmljavina'])
+                    regija_dio.append(grmljavina_tekst)
                     regija_dio.append("")
             
             if regija_ima:
                 poruka_dijelovi.extend(regija_dio)
         
         poruka_dijelovi.append(f"✅ Ukupno: {ukupno_grupa} MFG grupa s grmljavinom")
-        
         poruka = "\n".join(poruka_dijelovi)
     else:
         poruka = f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})\n\n✅ Jučer NIJE BILO GRMLJAVINE ni na jednom mjestu"
