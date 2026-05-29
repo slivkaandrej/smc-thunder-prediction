@@ -4,6 +4,7 @@ import os
 import sys
 from collections import defaultdict
 import re
+import time
 
 # =========================
 # TELEGRAM SETTINGS
@@ -195,7 +196,6 @@ print(f"{'='*50}\n")
 
 # =========================
 # MODE: REPORT (dnevni izvještaj - 7:10 i 14:00)
-# KORISTI FORECAST API (prognoza)
 # =========================
 if MODE == "report":
     results = []
@@ -261,10 +261,14 @@ elif MODE == "yesterday":
     
     rezultati = {}
     ukupno_grupa = 0
+    ukupno_grupa_ukupno = len(sve_mfg_grupe)
+    trenutni_broj = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
+        trenutni_broj += 1
+        print(f"🔄 Provjera {trenutni_broj}/{ukupno_grupa_ukupno}: MFG {mfg_id} ({naziv})...")
+        
         try:
-            # Forecast API s past_days=2 (za jučer)
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
@@ -275,17 +279,27 @@ elif MODE == "yesterday":
                 "timezone": "Europe/Zagreb"
             }
             
-            r = requests.get(url, params=params, timeout=30)
-            data = r.json()
+            max_retries = 2
+            data = None
             
-            if "hourly" not in data:
+            for attempt in range(max_retries):
+                try:
+                    r = requests.get(url, params=params, timeout=60)
+                    data = r.json()
+                    break
+                except requests.exceptions.Timeout:
+                    if attempt == max_retries - 1:
+                        raise
+                    print(f"   ⏱️ Timeout za {naziv}, ponovni pokušaj {attempt + 2}...")
+                    time.sleep(2)
+            
+            if data is None or "hourly" not in data:
                 continue
             
             hourly = data["hourly"]
             if "weathercode" not in hourly or "cape" not in hourly:
                 continue
             
-            # Jučer je drugih 24 sata (indexi 24-47)
             najjaci_code = 0
             najveci_cape = 0
             
@@ -314,12 +328,21 @@ elif MODE == "yesterday":
                     "mfg_id": mfg_id
                 }
                 ukupno_grupa += 1
-                print(f"📍 MFG {mfg_id} ({naziv}): code={najjaci_code}, cape={najveci_cape}")
+                
+                if najjaci_code == 99:
+                    print(f"   ✅ JAKA GRMLJAVINA!")
+                elif najjaci_code == 96:
+                    print(f"   ✅ GRMLJAVINA S TUČOM!")
+                else:
+                    print(f"   ✅ GRMLJAVINA!")
+            else:
+                print(f"   ❌ Nema grmljavine")
+            
+            time.sleep(0.2)
             
         except Exception as e:
-            print(f"ERROR - {naziv}: {e}")
+            print(f"   ❌ GREŠKA: {e}")
     
-    # Generiranje poruke
     if rezultati:
         poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})", ""]
         poruka_dijelovi.append("⚠️ Napomena: Prognozirani podaci (Forecast API)")
@@ -357,7 +380,6 @@ elif MODE == "yesterday":
 
 # =========================
 # MODE: ALERT (upozorenje - svaki sat)
-# KORISTI FORECAST API (prognoza)
 # =========================
 elif MODE == "alert":
     print("🔍 Provjera alarma na MFG grupama...")
@@ -446,7 +468,6 @@ elif MODE == "weekly":
     print("📊 Generiram tjedni izvještaj - SAMO grmljavina (Historical API - stvarni podaci)...")
     print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
     
-    # Gledamo period od prije 9-2 dana (da budemo sigurni da podaci postoje)
     end_date = datetime.now() - timedelta(days=2)
     start_date = end_date - timedelta(days=6)
     
@@ -462,7 +483,6 @@ elif MODE == "weekly":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            # Historical API za stvarne podatke
             url = "https://archive-api.open-meteo.com/v1/archive"
             params = {
                 "latitude": lat,
@@ -490,7 +510,6 @@ elif MODE == "weekly":
                 if end > len(hourly["weathercode"]):
                     break
                 
-                # Pronađi najjaču grmljavinu u ovom danu
                 najjaci_code = 0
                 najveci_cape = 0
                 
