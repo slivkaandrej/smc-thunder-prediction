@@ -30,10 +30,9 @@ regije = {
 }
 
 # =========================
-# MFG GRUPE (s ispravljenim Solinom)
+# MFG GRUPE (dodani Solin, Žrnovnica, Klis)
 # =========================
 sve_mfg_grupe = {
-    # ========== SJEVERNA HRVATSKA (9xx) ==========
     "942": ("Varaždin", 46.3044, 16.3378),
     "944": ("Koprivnica", 46.1625, 16.8278),
     "945": ("Bjelovar", 45.8986, 16.8489),
@@ -42,8 +41,6 @@ sve_mfg_grupe = {
     "953": ("Daruvar", 45.5906, 17.2250),
     "953b": ("Požega", 45.3314, 17.6744),
     "954": ("Slavonski Brod", 45.1603, 18.0156),
-    
-    # ========== OSIJEK I OKOLICA ==========
     "962": ("Osijek Centar / Istok", 45.5550, 18.6955),
     "961a": ("Osijek Zapad (Višnjevac)", 45.56861, 18.61389),
     "961b": ("Osijek Jug (Tenja)", 45.498, 18.747),
@@ -54,8 +51,6 @@ sve_mfg_grupe = {
     "963": ("Slatina", 45.7033, 17.7025),
     "964": ("Vinkovci", 45.2883, 18.8047),
     "964b": ("Ilok", 45.2222, 19.3769),
-    
-    # ========== KVARNER I ISTRA (8xx) ==========
     "841": ("Krk", 45.0260, 14.5780),
     "842": ("Crikvenica", 45.1667, 14.6833),
     "843": ("Opatija", 45.3333, 14.3000),
@@ -64,29 +59,20 @@ sve_mfg_grupe = {
     "851": ("Pula", 44.8667, 13.8500),
     "852": ("Rovinj", 45.0833, 13.6333),
     "854": ("Umag", 45.4333, 13.5167),
-    
-    # ========== GORSKI KOTAR I LIKA (8xx) ==========
     "831": ("Ogulin", 45.2667, 15.2167),
     "832": ("Karlovac", 45.4872, 15.5478),
-    
-    # ========== DALMACIJA (7xx) – ISPRAVLJENO ==========
     "711": ("Dubrovnik", 42.6507, 18.0944),
     "713": ("Korčula", 42.9600, 17.1300),
     "715": ("Imotski", 43.4400, 17.2100),
     "721": ("Split", 43.5081, 16.4402),
-    "722": ("Solin", 43.5333, 16.5000),           # ISPRAVLJENO – Solin
-    "722b": ("Hvar", 43.1725, 16.4428),           # DODANO – Hvar
+    "722": ("Hvar", 43.1725, 16.4428),
     "723": ("Trogir", 43.5167, 16.2500),
     "724": ("Sinj", 43.7000, 16.6333),
-    "724b": ("Trilj", 43.6167, 16.7167),
     "725": ("Vis", 43.0600, 16.1800),
-    "725b": ("Žrnovnica", 43.5200, 16.5500),
     "731": ("Zadar", 44.1194, 15.2314),
     "733": ("Knin", 44.0500, 16.2000),
     "734": ("Biograd", 43.9333, 15.4333),
     "735": ("Šibenik", 43.7350, 15.8957),
-    
-    # ========== ZAGREBAČKA REGIJA (6xx) ==========
     "624": ("Samobor", 45.8000, 15.7200),
     "634": ("Velika Gorica", 45.7100, 16.0700),
     "611": ("Zagreb Centar", 45.8150, 15.9819),
@@ -95,16 +81,20 @@ sve_mfg_grupe = {
     "621": ("Zagreb Trešnjevka", 45.7850, 15.9300),
     "622": ("Zagreb Črnomerec", 45.8200, 15.9300),
     "633": ("Zagreb Trnsko", 45.7700, 15.9600),
+    # ========== DODANI: SOLIN, ŽRNOVNICA, KLIS ==========
+    "722a": ("Solin", 43.5333, 16.5000),
+    "725b": ("Žrnovnica", 43.5200, 16.5500),
+    "724b": ("Klis", 43.5500, 16.5167),
 }
 
 # =========================
-# GRUPIRANJE PO REGIJAMA (ažurirano)
+# GRUPIRANJE PO REGIJAMA (ažurirano s dodanim mjestima)
 # =========================
 regije_mfg = {
     "🌾 SLAVONIJA": ["953", "953b", "954", "962", "961a", "961b", "962b", "962c", "962d", "962e", "963", "964", "964b"],
     "🏔️ GORSKA HRVATSKA": ["831", "832"],
     "🌊 KVARNER I ISTRA": ["841", "842", "843", "845", "845b", "851", "852", "854"],
-    "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "722b", "723", "724", "724b", "725", "725b", "731", "733", "734", "735"],
+    "☀️ DALMACIJA": ["711", "713", "715", "721", "722", "723", "724", "725", "731", "733", "734", "735", "722a", "725b", "724b"],
     "🏙️ ZAGREB I OKOLICA": ["624", "634", "611", "613", "614", "621", "622", "633"],
     "📌 SJEVERNA HRVATSKA": ["942", "944", "945", "951", "952"],
 }
@@ -206,6 +196,7 @@ print(f"{'='*50}\n")
 
 # =========================
 # MODE: REPORT (dnevni izvještaj - 7:10 i 14:00)
+# KORISTI FORECAST API (prognoza)
 # =========================
 if MODE == "report":
     results = []
@@ -260,44 +251,49 @@ if MODE == "report":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: YESTERDAY (grmljavina jučer - sa Open-Meteo)
+# MODE: YESTERDAY (grmljavina jučer - STVARNI PODACI)
+# KORISTI HISTORICAL API (archive-api)
 # =========================
 elif MODE == "yesterday":
-    print("📊 Generiram izvještaj o grmljavini jučer (sa Open-Meteo)...")
+    print("📊 Generiram izvještaj o grmljavini jučer (STVARNI PODACI - Historical API)...")
+    print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
     
-    juce = datetime.now() - timedelta(days=1)
+    juce = datetime.now() - timedelta(days=2)  # Idemo 2 dana unazad da budemo sigurni da podaci postoje
     juce_str = juce.strftime("%d.%m.%Y")
     
     rezultati = {}
+    ukupno_grupa = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            url = "https://api.open-meteo.com/v1/forecast"
+            # Historical API za stvarne podatke
+            url = "https://archive-api.open-meteo.com/v1/archive"
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,weathercode",
-                "past_days": 1,
-                "forecast_days": 0,
+                "start_date": juce.strftime("%Y-%m-%d"),
+                "end_date": juce.strftime("%Y-%m-%d"),
+                "hourly": "weathercode,cape",
                 "timezone": "Europe/Zagreb"
             }
             
             r = requests.get(url, params=params, timeout=30)
-            data = r.json()["hourly"]
+            data = r.json()
             
-            if "cape" not in data or not data["cape"]:
+            if "hourly" not in data:
                 continue
             
-            # Pronađi najjaču grmljavinu (najveći code)
+            hourly = data["hourly"]
+            if "weathercode" not in hourly or "cape" not in hourly:
+                continue
+            
+            # Pronađi najjaču grmljavinu u danu
             najjaci_code = 0
             najveci_cape = 0
             
-            for hour in range(24):
-                if hour >= len(data["cape"]):
-                    break
-                
-                cape = data["cape"][hour]
-                weather = data["weathercode"][hour]
+            for hour in range(len(hourly["weathercode"])):
+                weather = hourly["weathercode"][hour]
+                cape = hourly["cape"][hour]
                 
                 if cape is None:
                     continue
@@ -316,14 +312,17 @@ elif MODE == "yesterday":
                     "najveci_cape": najveci_cape,
                     "mfg_id": mfg_id
                 }
+                ukupno_grupa += 1
                 print(f"📍 MFG {mfg_id} ({naziv}): code={najjaci_code}, cape={najveci_cape}")
             
         except Exception as e:
             print(f"ERROR - {naziv}: {e}")
     
+    # Generiranje poruke
     if rezultati:
-        poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})", ""]
-        ukupno_grupa = 0
+        poruka_dijelovi = [f"📊 SMC THUNDER - GRMLJAVINA {juce_str} (STVARNI PODACI)", ""]
+        poruka_dijelovi.append("⚠️ Napomena: Historical API kasni ~2-5 dana")
+        poruka_dijelovi.append("")
         
         for regija_naziv, mfg_lista in regije_mfg.items():
             regija_ima = False
@@ -333,7 +332,6 @@ elif MODE == "yesterday":
                 if mfg_id in rezultati:
                     regija_ima = True
                     podaci = rezultati[mfg_id]
-                    ukupno_grupa += 1
                     
                     if podaci["najjaci_code"] == 99:
                         grmljavina_tekst = f"   • ⚡⚡ JAKA GRMLJAVINA S TUČOM! (CAPE {podaci['najveci_cape']:.0f})"
@@ -352,12 +350,13 @@ elif MODE == "yesterday":
         poruka_dijelovi.append(f"✅ Ukupno: {ukupno_grupa} MFG grupa s grmljavinom")
         poruka = "\n".join(poruka_dijelovi)
     else:
-        poruka = f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})\n\n✅ Jučer NIJE BILO GRMLJAVINE ni na jednom mjestu"
+        poruka = f"📊 SMC THUNDER - GRMLJAVINA {juce_str} (STVARNI PODACI)\n\n✅ Nema podataka o grmljavini (podaci možda još nisu dostupni ili nije bilo grmljavine)"
     
     posalji_u_grupu(poruka)
 
 # =========================
 # MODE: ALERT (upozorenje - svaki sat)
+# KORISTI FORECAST API (prognoza)
 # =========================
 elif MODE == "alert":
     print("🔍 Provjera alarma na MFG grupama...")
@@ -440,13 +439,15 @@ elif MODE == "alert":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: WEEKLY (tjedni izvještaj - NEDJELJOM u 20:00)
+# MODE: WEEKLY (tjedni izvještaj - STVARNI PODACI)
+# KORISTI HISTORICAL API (archive-api)
 # =========================
 elif MODE == "weekly":
-    print("📊 Generiram tjedni izvještaj - SAMO grmljavina...")
-    print(f"Broj lokacija: {len(sve_mfg_grupe)}")
+    print("📊 Generiram tjedni izvještaj - SAMO grmljavina (STVARNI PODACI - Historical API)...")
+    print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
     
-    end_date = datetime.now() - timedelta(days=1)
+    # Gledamo period od prije 9-2 dana (da budemo sigurni da podaci postoje)
+    end_date = datetime.now() - timedelta(days=2)
     start_date = end_date - timedelta(days=6)
     
     print(f"Period: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
@@ -461,44 +462,58 @@ elif MODE == "weekly":
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         try:
-            url = "https://api.open-meteo.com/v1/forecast"
+            # Historical API za stvarne podatke
+            url = "https://archive-api.open-meteo.com/v1/archive"
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "cape,weathercode",
-                "past_days": 7,
-                "forecast_days": 0,
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "end_date": end_date.strftime("%Y-%m-%d"),
+                "hourly": "weathercode,cape",
                 "timezone": "Europe/Zagreb"
             }
             
             r = requests.get(url, params=params, timeout=30)
-            data = r.json()["hourly"]
+            data = r.json()
             
-            if "cape" not in data or not data["cape"]:
+            if "hourly" not in data:
+                continue
+            
+            hourly = data["hourly"]
+            if "weathercode" not in hourly or "cape" not in hourly:
                 continue
             
             grmljavine = []
             for dan in range(7):
                 start = dan * 24
                 end = start + 24
-                if end > len(data["cape"]):
+                if end > len(hourly["weathercode"]):
                     break
                 
-                cape_vrijednosti = [x for x in data["cape"][start:end] if x is not None]
-                weather_vrijednosti = [x for x in data["weathercode"][start:end] if x is not None]
+                # Pronađi najjaču grmljavinu u ovom danu
+                najjaci_code = 0
+                najveci_cape = 0
                 
-                if not cape_vrijednosti:
-                    continue
+                for hour in range(start, end):
+                    weather = hourly["weathercode"][hour]
+                    cape = hourly["cape"][hour]
                     
-                max_cape = max(cape_vrijednosti)
-                max_weather = max(weather_vrijednosti) if weather_vrijednosti else 0
+                    if cape is None:
+                        continue
+                    
+                    if weather in [95, 96, 99]:
+                        if weather > najjaci_code:
+                            najjaci_code = weather
+                            najveci_cape = cape
+                        elif weather == najjaci_code and cape > najveci_cape:
+                            najveci_cape = cape
                 
-                if max_weather == 99:
-                    grmljavine.append(f"   • {datumi[dan]} ⚡⚡ JAKA GRMLJAVINA S TUČOM! | CAPE {max_cape:.0f}")
-                elif max_weather == 96:
-                    grmljavine.append(f"   • {datumi[dan]} ⚡ GRMLJAVINA S TUČOM | CAPE {max_cape:.0f}")
-                elif max_weather == 95:
-                    grmljavine.append(f"   • {datumi[dan]} 🌩️ GRMLJAVINA | CAPE {max_cape:.0f}")
+                if najjaci_code == 99:
+                    grmljavine.append(f"   • {datumi[dan]} ⚡⚡ JAKA GRMLJAVINA S TUČOM! | CAPE {najveci_cape:.0f}")
+                elif najjaci_code == 96:
+                    grmljavine.append(f"   • {datumi[dan]} ⚡ GRMLJAVINA S TUČOM | CAPE {najveci_cape:.0f}")
+                elif najjaci_code == 95:
+                    grmljavine.append(f"   • {datumi[dan]} 🌩️ GRMLJAVINA | CAPE {najveci_cape:.0f}")
             
             if grmljavine:
                 rezultati_sa_grmljavinom[mfg_id] = {
@@ -507,8 +522,6 @@ elif MODE == "weekly":
                     "mfg_id": mfg_id
                 }
                 ukupno_grupa += 1
-            
-            if grmljavine:
                 print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} dana s grmljavinom")
             
         except Exception as e:
@@ -517,7 +530,9 @@ elif MODE == "weekly":
     if rezultati_sa_grmljavinom:
         poruka_dijelovi = [f"📊 SMC THUNDER - TJEDNI IZVJEŠTAJ", ""]
         poruka_dijelovi.append(f"📅 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
-        poruka_dijelovi.append(f"📍 Prikazana su samo mjesta gdje je bilo grmljavine")
+        poruka_dijelovi.append("⚠️ Napomena: Historical API kasni ~2-5 dana")
+        poruka_dijelovi.append("")
+        poruka_dijelovi.append("📍 Prikazana su samo mjesta gdje je bilo grmljavine")
         poruka_dijelovi.append("")
         
         for regija_naziv, mfg_lista in regije_mfg.items():
@@ -542,8 +557,9 @@ elif MODE == "weekly":
         poruka = f"""📊 SMC THUNDER - TJEDNI IZVJEŠTAJ
 
 📅 Razdoblje: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}
+⚠️ Napomena: Historical API kasni ~2-5 dana
 
-✅ U proteklih 7 dana NIJE BILO GRMLJAVINE ni na jednom mjestu
+✅ Nema podataka o grmljavini (podaci možda još nisu dostupni ili nije bilo grmljavine)
 """
     posalji_u_grupu(poruka)
 
