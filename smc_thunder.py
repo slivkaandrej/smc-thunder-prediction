@@ -304,6 +304,23 @@ elif MODE == "yesterday":
                 print(f"   ❌ Nema weathercode ili cape podataka")
                 continue
             
+            # ========== DEBUG ZA SOLIN ==========
+            if mfg_id == "722a":  # Solin
+                print(f"\n   🔍🔍🔍 DEBUG za Solin 🔍🔍🔍")
+                print(f"   Ukupno sati u odgovoru: {len(hourly['weathercode'])}")
+                print(f"   Indeksi za jučer (28.05.): 24-47")
+                print("")
+                for hour in range(24, min(48, len(hourly["weathercode"]))):
+                    weather = hourly["weathercode"][hour]
+                    cape = hourly["cape"][hour] if hour < len(hourly["cape"]) else None
+                    sat_u_danu = hour - 24
+                    oznaka = ""
+                    if weather in [95, 96, 99]:
+                        oznaka = " ⚡ GRMLJAVINA!"
+                    print(f"      Sat {sat_u_danu:02d}:00 -> weathercode={weather}, cape={cape}{oznaka}")
+                print(f"   🔍🔍🔍 Kraj DEBUG za Solin 🔍🔍🔍\n")
+            # ========== KRAJ DEBUG ==========
+            
             najjaci_code = 0
             najveci_cape = 0
             
