@@ -304,23 +304,6 @@ elif MODE == "yesterday":
                 print(f"   ❌ Nema weathercode ili cape podataka")
                 continue
             
-            # ========== DEBUG ZA SOLIN ==========
-            if mfg_id == "722a":  # Solin
-                print(f"\n   🔍🔍🔍 DEBUG za Solin 🔍🔍🔍")
-                print(f"   Ukupno sati u odgovoru: {len(hourly['weathercode'])}")
-                print(f"   Indeksi za jučer (28.05.): 24-47")
-                print("")
-                for hour in range(24, min(48, len(hourly["weathercode"]))):
-                    weather = hourly["weathercode"][hour]
-                    cape = hourly["cape"][hour] if hour < len(hourly["cape"]) else None
-                    sat_u_danu = hour - 24
-                    oznaka = ""
-                    if weather in [95, 96, 99]:
-                        oznaka = " ⚡ GRMLJAVINA!"
-                    print(f"      Sat {sat_u_danu:02d}:00 -> weathercode={weather}, cape={cape}{oznaka}")
-                print(f"   🔍🔍🔍 Kraj DEBUG za Solin 🔍🔍🔍\n")
-            # ========== KRAJ DEBUG ==========
-            
             najjaci_code = 0
             najveci_cape = 0
             
@@ -399,6 +382,103 @@ elif MODE == "yesterday":
     else:
         poruka = f"📊 SMC THUNDER - GRMLJAVINA JUČER ({juce_str})\n\n✅ Jučer NIJE BILO GRMLJAVINE ni na jednom mjestu (prema prognozi)"
     
+    posalji_u_grupu(poruka)
+
+# =========================
+# MODE: ALERT HISTORY (pregled alarma poslanih jučer)
+# =========================
+elif MODE == "alerthistory":
+    print("📊 Generiram izvještaj o alertima koji su poslani jučer...")
+    
+    juce = datetime.now() - timedelta(days=1)
+    juce_str = juce.strftime("%d.%m.%Y")
+    
+    # Učitaj alert_history.txt
+    if not os.path.exists(ALERT_HISTORY_FILE):
+        poruka = f"📊 SMC THUNDER - ALERT POVIJEST ({juce_str})\n\n✅ Jučer NIJE BILO POSLANIH ALARMA"
+        posalji_u_grupu(poruka)
+        sys.exit(0)
+    
+    # Parsiraj fajl
+    alerti_po_grupi = defaultdict(list)
+    
+    with open(ALERT_HISTORY_FILE, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            
+            parts = line.split("|")
+            if len(parts) < 3:
+                continue
+            
+            alert_id = parts[0]
+            vrijeme = parts[1]
+            detalji = parts[2] if len(parts) > 2 else ""
+            
+            # Provjeri je li alert poslan jučer
+            try:
+                vrijeme_dt = datetime.fromisoformat(vrijeme)
+                if vrijeme_dt.date() == juce.date():
+                    alerti_po_grupi[alert_id].append({
+                        "vrijeme": vrijeme_dt.strftime("%H:%M"),
+                        "detalji": detalji
+                    })
+            except:
+                continue
+    
+    if not alerti_po_grupi:
+        poruka = f"📊 SMC THUNDER - ALERT POVIJEST ({juce_str})\n\n✅ Jučer NIJE BILO POSLANIH ALARMA"
+        posalji_u_grupu(poruka)
+        sys.exit(0)
+    
+    # Grupiraj po regijama
+    alerti_po_regijama = defaultdict(list)
+    
+    for alert_id, alerti in alerti_po_grupi.items():
+        # Izdvoji MFG broj iz alert_id (npr. "MFG_854" -> "854")
+        mfg_broj = alert_id.replace("MFG_", "")
+        
+        # Pronađi naziv MFG grupe i regiju
+        mfg_naziv = mfg_broj
+        for mid, (naziv, _, _) in sve_mfg_grupe.items():
+            if mid == mfg_broj:
+                mfg_naziv = naziv
+                break
+        
+        # Pronađi regiju
+        regija_pripada = "🌍 OSTALO"
+        for reg_naziv, mfg_lista in regije_mfg.items():
+            if mfg_broj in mfg_lista:
+                regija_pripada = reg_naziv
+                break
+        
+        for alert in alerti:
+            alerti_po_regijama[regija_pripada].append({
+                "mfg_id": mfg_broj,
+                "naziv": mfg_naziv,
+                "vrijeme": alert["vrijeme"],
+                "detalji": alert["detalji"]
+            })
+    
+    # Generiraj poruku
+    poruka_dijelovi = [f"📊 SMC THUNDER - ALERT POVIJEST ({juce_str})", ""]
+    poruka_dijelovi.append("📍 UPOZORENJA KOJA SU POSLANA:")
+    poruka_dijelovi.append("")
+    
+    for regija_naziv, alerti in alerti_po_regijama.items():
+        poruka_dijelovi.append(regija_naziv)
+        poruka_dijelovi.append("─────────────────")
+        
+        for alert in alerti:
+            poruka_dijelovi.append(f"🔵 MFG {alert['mfg_id']} ({alert['naziv']}):")
+            poruka_dijelovi.append(f"   • {alert['vrijeme']} {alert['detalji']}")
+            poruka_dijelovi.append("")
+    
+    ukupno_alerta = sum(len(a) for a in alerti_po_regijama.values())
+    poruka_dijelovi.append(f"✅ Ukupno: {ukupno_alerta} alerta poslano")
+    
+    poruka = "\n".join(poruka_dijelovi)
     posalji_u_grupu(poruka)
 
 # =========================
