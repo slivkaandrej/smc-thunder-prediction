@@ -170,7 +170,15 @@ def vremenski_raspored_grmljavine(weathercode_sati, cape_sati):
     Analizira satne podatke i vraća period u kojem se očekuje grmljavina.
     """
     sati_grmljavine = []
-    for hour, (weather, cape) in enumerate(zip(weathercode_sati, cape_sati)):
+    
+    for hour in range(24):
+        if hour >= len(weathercode_sati) or hour >= len(cape_sati):
+            break
+            
+        weather = weathercode_sati[hour]
+        cape = cape_sati[hour]
+        
+        # Samo weathercode 95, 96, 99 su grmljavina
         if weather in [95, 96, 99] and cape is not None:
             sati_grmljavine.append((hour, weather, cape))
 
@@ -179,8 +187,15 @@ def vremenski_raspored_grmljavine(weathercode_sati, cape_sati):
 
     prvi_sat = sati_grmljavine[0][0]
     zadnji_sat = sati_grmljavine[-1][0]
+    
+    # Ako raspon traje duže od 8 sati, vrati None (nije pouzdano)
+    if zadnji_sat - prvi_sat > 8:
+        return None, None, None
+    
+    # Pronađi sat s najjačom grmljavinom (najveći weather code, pa najveći CAPE)
     najjaci_sat, najjaci_code, najveci_cape = max(sati_grmljavine, key=lambda x: (x[1], x[2]))
 
+    # Formatiranje vremena za prikaz
     vremenski_raspon = f"{prvi_sat:02d}:00 - {zadnji_sat + 1:02d}:00"
     najjace_u_satu = f"{najjaci_sat:02d}:00"
 
@@ -498,7 +513,7 @@ elif MODE == "alerthistory":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: ALERT (upozorenje - svaki sat, s vremenskim rasponom)
+# MODE: ALERT (upozorenje - svaki sat, s vremenskim rasponom i bojama)
 # =========================
 elif MODE == "alert":
     print("🔍 Provjera alarma na MFG grupama (s vremenskim prognozama)...")
@@ -508,6 +523,7 @@ elif MODE == "alert":
     
     ukupno_lokacija = len(sve_mfg_grupe)
     trenutni_broj = 0
+    trenutni_sat = datetime.now().hour
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
         trenutni_broj += 1
@@ -546,16 +562,16 @@ elif MODE == "alert":
             weather_sati = hourly["weathercode"]
             cape_sati = hourly["cape"]
             
-            # 1. Izračunaj vremenski raspon grmljavine
+            # Izračunaj vremenski raspon grmljavine
             raspon, najjaci_sat, najjaci_code = vremenski_raspored_grmljavine(weather_sati, cape_sati)
             
-            # 2. Izračunaj maksimalne vrijednosti za rizik
+            # Izračunaj maksimalne vrijednosti za rizik
             max_cape = max(cape_sati)
             max_cloud = max(hourly["cloudcover"])
             max_precip = max(hourly["precipitation_probability"])
             max_weathercode = max(weather_sati)
             
-            # 3. Procjena rizika
+            # Procjena rizika
             nivo_rizika = "NIZAK"
             if max_cape > 2000 or max_weathercode in [95, 96, 99]:
                 nivo_rizika = "VRLO VISOK"
@@ -564,23 +580,37 @@ elif MODE == "alert":
             elif max_cape > 800:
                 nivo_rizika = "UMJEREN"
             
-            # 4. Kriterij za slanje alarma
+            # Kriterij za slanje alarma
             if nivo_rizika == "VRLO VISOK" or max_weathercode in [95, 96, 99]:
                 detalj = f"CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}"
                 alert_id = f"MFG_{mfg_id}"
                 
+                # Odaberi boju prema statusu
+                if raspon:
+                    pocetak = int(raspon.split(" - ")[0].split(":")[0])
+                    kraj = int(raspon.split(" - ")[1].split(":")[0])
+                    
+                    if trenutni_sat < pocetak or (pocetak <= trenutni_sat <= kraj):
+                        boja = "🔴"  # AKTIVNO
+                    else:
+                        boja = "🟢"  # ZAVRŠENO
+                else:
+                    boja = "🔵"  # NEMA RASPONA
+                
                 vremenska_info = ""
                 if raspon:
-                    vremenska_info = f" | 🕐 Očekivano: {raspon}"
-                    if najjaci_sat:
+                    vremenska_info = f" | 🕐 {raspon}"
+                    if najjaci_sat and boja == "🔴":
                         vremenska_info += f" (najjače oko {najjaci_sat})"
                 
                 if not zadnji_alert_poslan(alert_id):
-                    alert_mfg.append(f"⚡ MFG {mfg_id} ({naziv}) | {detalj}{vremenska_info}")
+                    alert_mfg.append(f"{boja} MFG {mfg_id} ({naziv}) | {detalj}{vremenska_info}")
                     novi_alerti.append((alert_id, detalj))
-                    print(f"   🚨 ALERT!{vremenska_info}")
+                    print(f"   {boja} ALERT!{vremenska_info}")
                 else:
-                    print(f"   ⏭️ Alert već poslan u zadnjih 6 sati")
+                    # Za ponovljene, zadrži istu boju ali ne spremaj u povijest
+                    alert_mfg.append(f"{boja} MFG {mfg_id} ({naziv}) | {detalj}{vremenska_info}")
+                    print(f"   {boja} PONOVNO!{vremenska_info}")
             else:
                 print(f"   ✅ Nema opasnosti")
             
@@ -593,7 +623,7 @@ elif MODE == "alert":
         spremi_alert(alert_id, detalj)
     
     if not alert_mfg:
-        print("\n✅ Nema novih alarma - ne šaljem poruku")
+        print("\n✅ Nema alarma - ne šaljem poruku")
         sys.exit(0)
     
     alerti_po_regijama = defaultdict(list)
@@ -612,13 +642,15 @@ elif MODE == "alert":
         poruka_dijelovi.append(f"\n📌 {regija_naziv}")
         poruka_dijelovi.extend(alerti)
     
+    legenda = "\n\n📌 Legenda:\n🔴 = AKTIVNO (još traje ili dolazi)\n🟢 = ZAVRŠENO (oluja je prošla)\n🔵 = NEMA POUZDANOG RASPONA"
+    
     poruka = f"""🚨 SMC ALERT 🚨
 
 ⚠️ VRLO VISOK RIZIK ILI GRMLJAVINA!
 
 📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}
-📍 Pogođene MFG grupe (prvi put u 6 sati):
-""" + "\n".join(poruka_dijelovi) + """
+📍 Pogođene MFG grupe:
+""" + "\n".join(poruka_dijelovi) + legenda + """
 
 ⚠️ Preporuka: Pratite razvoj situacije!
 🔔 Sljedeća provjera za 1 sat
