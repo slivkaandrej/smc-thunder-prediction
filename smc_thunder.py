@@ -162,6 +162,30 @@ def opis_grmljavine(weathercode):
     else:
         return "☀️ SUHO"
 
+# =========================
+# FUNKCIJA ZA VREMENSKI RASPORED GRMLJAVINE
+# =========================
+def vremenski_raspored_grmljavine(weathercode_sati, cape_sati):
+    """
+    Analizira satne podatke i vraća period u kojem se očekuje grmljavina.
+    """
+    sati_grmljavine = []
+    for hour, (weather, cape) in enumerate(zip(weathercode_sati, cape_sati)):
+        if weather in [95, 96, 99] and cape is not None:
+            sati_grmljavine.append((hour, weather, cape))
+
+    if not sati_grmljavine:
+        return None, None, None
+
+    prvi_sat = sati_grmljavine[0][0]
+    zadnji_sat = sati_grmljavine[-1][0]
+    najjaci_sat, najjaci_code, najveci_cape = max(sati_grmljavine, key=lambda x: (x[1], x[2]))
+
+    vremenski_raspon = f"{prvi_sat:02d}:00 - {zadnji_sat + 1:02d}:00"
+    najjace_u_satu = f"{najjaci_sat:02d}:00"
+
+    return vremenski_raspon, najjace_u_satu, najjaci_code
+
 ALERT_HISTORY_FILE = "alert_history.txt"
 
 def zadnji_alert_poslan(alert_id):
@@ -393,13 +417,11 @@ elif MODE == "alerthistory":
     juce = datetime.now() - timedelta(days=1)
     juce_str = juce.strftime("%d.%m.%Y")
     
-    # Učitaj alert_history.txt
     if not os.path.exists(ALERT_HISTORY_FILE):
         poruka = f"📊 SMC THUNDER - ALERT POVIJEST ({juce_str})\n\n✅ Jučer NIJE BILO POSLANIH ALARMA"
         posalji_u_grupu(poruka)
         sys.exit(0)
     
-    # Parsiraj fajl
     alerti_po_grupi = defaultdict(list)
     
     with open(ALERT_HISTORY_FILE, "r") as f:
@@ -416,7 +438,6 @@ elif MODE == "alerthistory":
             vrijeme = parts[1]
             detalji = parts[2] if len(parts) > 2 else ""
             
-            # Provjeri je li alert poslan jučer
             try:
                 vrijeme_dt = datetime.fromisoformat(vrijeme)
                 if vrijeme_dt.date() == juce.date():
@@ -432,21 +453,17 @@ elif MODE == "alerthistory":
         posalji_u_grupu(poruka)
         sys.exit(0)
     
-    # Grupiraj po regijama
     alerti_po_regijama = defaultdict(list)
     
     for alert_id, alerti in alerti_po_grupi.items():
-        # Izdvoji MFG broj iz alert_id (npr. "MFG_854" -> "854")
         mfg_broj = alert_id.replace("MFG_", "")
         
-        # Pronađi naziv MFG grupe i regiju
         mfg_naziv = mfg_broj
         for mid, (naziv, _, _) in sve_mfg_grupe.items():
             if mid == mfg_broj:
                 mfg_naziv = naziv
                 break
         
-        # Pronađi regiju
         regija_pripada = "🌍 OSTALO"
         for reg_naziv, mfg_lista in regije_mfg.items():
             if mfg_broj in mfg_lista:
@@ -461,7 +478,6 @@ elif MODE == "alerthistory":
                 "detalji": alert["detalji"]
             })
     
-    # Generiraj poruku
     poruka_dijelovi = [f"📊 SMC THUNDER - ALERT POVIJEST ({juce_str})", ""]
     poruka_dijelovi.append("📍 UPOZORENJA KOJA SU POSLANA:")
     poruka_dijelovi.append("")
@@ -482,14 +498,21 @@ elif MODE == "alerthistory":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: ALERT (upozorenje - svaki sat)
+# MODE: ALERT (upozorenje - svaki sat, s vremenskim rasponom)
 # =========================
 elif MODE == "alert":
-    print("🔍 Provjera alarma na MFG grupama...")
+    print("🔍 Provjera alarma na MFG grupama (s vremenskim prognozama)...")
+    print("⏱️ Očekivano trajanje: ~2-3 minute (analizira se 51 lokacija)...")
     alert_mfg = []
     novi_alerti = []
     
+    ukupno_lokacija = len(sve_mfg_grupe)
+    trenutni_broj = 0
+    
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
+        trenutni_broj += 1
+        print(f"\n🔄 Provjera {trenutni_broj}/{ukupno_lokacija}: MFG {mfg_id} ({naziv})...")
+        
         try:
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
@@ -499,14 +522,40 @@ elif MODE == "alert":
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
-            r = requests.get(url, params=params, timeout=30)
-            data = r.json()["hourly"]
-
-            max_cape = max(data["cape"])
-            max_cloud = max(data["cloudcover"])
-            max_precip = max(data["precipitation_probability"])
-            max_weathercode = max(data["weathercode"])
             
+            max_retries = 3
+            data = None
+            
+            for attempt in range(max_retries):
+                try:
+                    r = requests.get(url, params=params, timeout=90)
+                    data = r.json()
+                    print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
+                    break
+                except requests.exceptions.Timeout:
+                    if attempt == max_retries - 1:
+                        raise
+                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                    time.sleep(5)
+            
+            if data is None or "hourly" not in data:
+                print(f"   ❌ Nema podataka")
+                continue
+            
+            hourly = data["hourly"]
+            weather_sati = hourly["weathercode"]
+            cape_sati = hourly["cape"]
+            
+            # 1. Izračunaj vremenski raspon grmljavine
+            raspon, najjaci_sat, najjaci_code = vremenski_raspored_grmljavine(weather_sati, cape_sati)
+            
+            # 2. Izračunaj maksimalne vrijednosti za rizik
+            max_cape = max(cape_sati)
+            max_cloud = max(hourly["cloudcover"])
+            max_precip = max(hourly["precipitation_probability"])
+            max_weathercode = max(weather_sati)
+            
+            # 3. Procjena rizika
             nivo_rizika = "NIZAK"
             if max_cape > 2000 or max_weathercode in [95, 96, 99]:
                 nivo_rizika = "VRLO VISOK"
@@ -515,24 +564,36 @@ elif MODE == "alert":
             elif max_cape > 800:
                 nivo_rizika = "UMJEREN"
             
+            # 4. Kriterij za slanje alarma
             if nivo_rizika == "VRLO VISOK" or max_weathercode in [95, 96, 99]:
                 detalj = f"CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}"
                 alert_id = f"MFG_{mfg_id}"
                 
+                vremenska_info = ""
+                if raspon:
+                    vremenska_info = f" | 🕐 Očekivano: {raspon}"
+                    if najjaci_sat:
+                        vremenska_info += f" (najjače oko {najjaci_sat})"
+                
                 if not zadnji_alert_poslan(alert_id):
-                    alert_mfg.append(f"⚡ MFG {mfg_id} ({naziv}) | {detalj}")
+                    alert_mfg.append(f"⚡ MFG {mfg_id} ({naziv}) | {detalj}{vremenska_info}")
                     novi_alerti.append((alert_id, detalj))
+                    print(f"   🚨 ALERT!{vremenska_info}")
+                else:
+                    print(f"   ⏭️ Alert već poslan u zadnjih 6 sati")
+            else:
+                print(f"   ✅ Nema opasnosti")
             
-            print(f"MFG {mfg_id} ({naziv}) | CAPE={max_cape:4.0f} CODE={max_weathercode} => {nivo_rizika}")
+            time.sleep(0.5)
             
         except Exception as e:
-            print(f"ERROR - MFG {mfg_id} ({naziv}): {e}")
+            print(f"   ❌ GREŠKA: {e}")
     
     for alert_id, detalj in novi_alerti:
         spremi_alert(alert_id, detalj)
     
     if not alert_mfg:
-        print("✅ Nema novih alarma - ne šaljem poruku")
+        print("\n✅ Nema novih alarma - ne šaljem poruku")
         sys.exit(0)
     
     alerti_po_regijama = defaultdict(list)
