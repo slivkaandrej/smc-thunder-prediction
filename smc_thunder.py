@@ -663,6 +663,7 @@ elif MODE == "alert":
 elif MODE == "weekly":
     print("📊 Generiram tjedni izvještaj - SAMO grmljavina (Historical API - stvarni podaci)...")
     print("⚠️ Napomena: Historical API kasni ~2-5 dana. Podaci za zadnjih nekoliko dana možda nisu dostupni.")
+    print("⏱️ Očekivano trajanje: ~2-3 minute (analizira se 51 lokacija)...")
     
     end_date = datetime.now() - timedelta(days=2)
     start_date = end_date - timedelta(days=6)
@@ -676,8 +677,13 @@ elif MODE == "weekly":
     
     rezultati_sa_grmljavinom = {}
     ukupno_grupa = 0
+    ukupno_lokacija = len(sve_mfg_grupe)
+    trenutni_broj = 0
     
     for mfg_id, (naziv, lat, lon) in sve_mfg_grupe.items():
+        trenutni_broj += 1
+        print(f"\n🔄 Provjera {trenutni_broj}/{ukupno_lokacija}: MFG {mfg_id} ({naziv})...")
+        
         try:
             url = "https://archive-api.open-meteo.com/v1/archive"
             params = {
@@ -689,14 +695,29 @@ elif MODE == "weekly":
                 "timezone": "Europe/Zagreb"
             }
             
-            r = requests.get(url, params=params, timeout=30)
-            data = r.json()
+            # RETRY MEHANIZAM (kao u ALERT i YESTERDAY)
+            max_retries = 3
+            data = None
             
-            if "hourly" not in data:
+            for attempt in range(max_retries):
+                try:
+                    r = requests.get(url, params=params, timeout=90)  # 90 sekundi!
+                    data = r.json()
+                    print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
+                    break
+                except requests.exceptions.Timeout:
+                    if attempt == max_retries - 1:
+                        raise
+                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                    time.sleep(5)
+            
+            if data is None or "hourly" not in data:
+                print(f"   ❌ Nema podataka")
                 continue
             
             hourly = data["hourly"]
             if "weathercode" not in hourly or "cape" not in hourly:
+                print(f"   ❌ Nema weathercode ili cape podataka")
                 continue
             
             grmljavine = []
@@ -737,10 +758,14 @@ elif MODE == "weekly":
                     "mfg_id": mfg_id
                 }
                 ukupno_grupa += 1
-                print(f"📍 MFG {mfg_id} ({naziv}): {len(grmljavine)} dana s grmljavinom")
+                print(f"   ✅ {len(grmljavine)} dana s grmljavinom")
+            else:
+                print(f"   ❌ Nema grmljavine")
+            
+            time.sleep(0.5)
             
         except Exception as e:
-            print(f"ERROR - {naziv}: {e}")
+            print(f"   ❌ GREŠKA: {e}")
     
     if rezultati_sa_grmljavinom:
         poruka_dijelovi = [f"📊 SMC THUNDER - TJEDNI IZVJEŠTAJ", ""]
