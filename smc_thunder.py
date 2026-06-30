@@ -5,6 +5,19 @@ import sys
 from collections import defaultdict
 import re
 import time
+import urllib3
+
+# =========================
+# DISABLE SSL WARNINGS
+# =========================
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# =========================
+# HEADERS ZA SVE ZAHTJEVE
+# =========================
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+}
 
 # =========================
 # TELEGRAM SETTINGS
@@ -107,7 +120,9 @@ def posalji_u_grupu(poruka):
         resp = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             data={"chat_id": GROUP_CHAT_ID, "text": poruka},
-            timeout=10
+            timeout=10,
+            headers=REQUEST_HEADERS,
+            verify=False
         )
         if resp.status_code == 200:
             print("✅ Poruka poslana u grupu!")
@@ -250,7 +265,7 @@ if MODE == "report":
                 "forecast_days": 1,
                 "timezone": "Europe/Zagreb"
             }
-            r = requests.get(url, params=params, timeout=30)
+            r = requests.get(url, params=params, timeout=30, headers=REQUEST_HEADERS, verify=False)
             data = r.json()["hourly"]
 
             max_cape = max(data["cape"])
@@ -324,14 +339,16 @@ elif MODE == "yesterday":
             
             for attempt in range(max_retries):
                 try:
-                    r = requests.get(url, params=params, timeout=90)
+                    r = requests.get(url, params=params, timeout=120, headers=REQUEST_HEADERS, verify=False)
                     data = r.json()
                     print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
                     break
-                except requests.exceptions.Timeout:
+                except (requests.exceptions.Timeout, requests.exceptions.SSLError) as e:
                     if attempt == max_retries - 1:
-                        raise
-                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                        print(f"   ❌ Greška nakon {max_retries} pokušaja: {type(e).__name__}")
+                        data = None
+                        break
+                    print(f"   ⚠️ {type(e).__name__}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
                     time.sleep(5)
             
             if data is None or "hourly" not in data:
@@ -383,7 +400,7 @@ elif MODE == "yesterday":
             else:
                 print(f"   ❌ Nema grmljavine")
             
-            time.sleep(0.5)
+            time.sleep(1)
             
         except Exception as e:
             print(f"   ❌ GREŠKA: {e}")
@@ -513,10 +530,10 @@ elif MODE == "alerthistory":
     posalji_u_grupu(poruka)
 
 # =========================
-# MODE: ALERT (upozorenje - svaki sat, s vremenskim rasponom i bojama)
+# MODE: ALERT (upozorenje - SAMO za grmljavinu, s vremenskim rasponom i bojama)
 # =========================
 elif MODE == "alert":
-    print("🔍 Provjera alarma na MFG grupama (s vremenskim prognozama)...")
+    print("🔍 Provjera alarma na MFG grupama (samo grmljavina)...")
     print("⏱️ Očekivano trajanje: ~2-3 minute (analizira se 51 lokacija)...")
     alert_mfg = []
     novi_alerti = []
@@ -544,14 +561,16 @@ elif MODE == "alert":
             
             for attempt in range(max_retries):
                 try:
-                    r = requests.get(url, params=params, timeout=90)
+                    r = requests.get(url, params=params, timeout=120, headers=REQUEST_HEADERS, verify=False)
                     data = r.json()
                     print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
                     break
-                except requests.exceptions.Timeout:
+                except (requests.exceptions.Timeout, requests.exceptions.SSLError) as e:
                     if attempt == max_retries - 1:
-                        raise
-                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                        print(f"   ❌ Greška nakon {max_retries} pokušaja: {type(e).__name__}")
+                        data = None
+                        break
+                    print(f"   ⚠️ {type(e).__name__}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
                     time.sleep(5)
             
             if data is None or "hourly" not in data:
@@ -565,23 +584,14 @@ elif MODE == "alert":
             # Izračunaj vremenski raspon grmljavine
             raspon, najjaci_sat, najjaci_code = vremenski_raspored_grmljavine(weather_sati, cape_sati)
             
-            # Izračunaj maksimalne vrijednosti za rizik
+            # Izračunaj maksimalne vrijednosti
             max_cape = max(cape_sati)
             max_cloud = max(hourly["cloudcover"])
             max_precip = max(hourly["precipitation_probability"])
             max_weathercode = max(weather_sati)
             
-            # Procjena rizika
-            nivo_rizika = "NIZAK"
-            if max_cape > 2000 or max_weathercode in [95, 96, 99]:
-                nivo_rizika = "VRLO VISOK"
-            elif max_cape > 1500:
-                nivo_rizika = "VISOK"
-            elif max_cape > 800:
-                nivo_rizika = "UMJEREN"
-            
-            # Kriterij za slanje alarma
-            if nivo_rizika == "VRLO VISOK" or max_weathercode in [95, 96, 99]:
+            # SAMO AKO POSTOJI GRMLJAVINA (weathercode 95, 96, 99)
+            if max_weathercode in [95, 96, 99]:
                 detalj = f"CAPE {max_cape:.0f} | {opis_grmljavine(max_weathercode)}"
                 alert_id = f"MFG_{mfg_id}"
                 
@@ -608,13 +618,12 @@ elif MODE == "alert":
                     novi_alerti.append((alert_id, detalj))
                     print(f"   {boja} ALERT!{vremenska_info}")
                 else:
-                    # Za ponovljene, zadrži istu boju ali ne spremaj u povijest
                     alert_mfg.append(f"{boja} MFG {mfg_id} ({naziv}) | {detalj}{vremenska_info}")
                     print(f"   {boja} PONOVNO!{vremenska_info}")
             else:
-                print(f"   ✅ Nema opasnosti")
+                print(f"   ✅ Nema grmljavine")
             
-            time.sleep(0.5)
+            time.sleep(1)
             
         except Exception as e:
             print(f"   ❌ GREŠKA: {e}")
@@ -623,7 +632,7 @@ elif MODE == "alert":
         spremi_alert(alert_id, detalj)
     
     if not alert_mfg:
-        print("\n✅ Nema alarma - ne šaljem poruku")
+        print("\n✅ Nema grmljavine - ne šaljem poruku")
         sys.exit(0)
     
     alerti_po_regijama = defaultdict(list)
@@ -646,7 +655,7 @@ elif MODE == "alert":
     
     poruka = f"""🚨 SMC ALERT 🚨
 
-⚠️ VRLO VISOK RIZIK ILI GRMLJAVINA!
+⚠️ GRMLJAVINA!
 
 📅 {datetime.now().strftime('%d.%m.%Y. %H:%M')}
 📍 Pogođene MFG grupe:
@@ -695,20 +704,21 @@ elif MODE == "weekly":
                 "timezone": "Europe/Zagreb"
             }
             
-            # RETRY MEHANIZAM (kao u ALERT i YESTERDAY)
             max_retries = 3
             data = None
             
             for attempt in range(max_retries):
                 try:
-                    r = requests.get(url, params=params, timeout=90)  # 90 sekundi!
+                    r = requests.get(url, params=params, timeout=120, headers=REQUEST_HEADERS, verify=False)
                     data = r.json()
                     print(f"   ✅ Uspješno dohvaćeno (pokušaj {attempt + 1})")
                     break
-                except requests.exceptions.Timeout:
+                except (requests.exceptions.Timeout, requests.exceptions.SSLError) as e:
                     if attempt == max_retries - 1:
-                        raise
-                    print(f"   ⏱️ Timeout za {naziv}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
+                        print(f"   ❌ Greška nakon {max_retries} pokušaja: {type(e).__name__}")
+                        data = None
+                        break
+                    print(f"   ⚠️ {type(e).__name__}, čekam 5 sekundi pa pokušaj {attempt + 2}...")
                     time.sleep(5)
             
             if data is None or "hourly" not in data:
@@ -762,7 +772,7 @@ elif MODE == "weekly":
             else:
                 print(f"   ❌ Nema grmljavine")
             
-            time.sleep(0.5)
+            time.sleep(1)
             
         except Exception as e:
             print(f"   ❌ GREŠKA: {e}")
